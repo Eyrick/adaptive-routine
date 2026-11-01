@@ -52,11 +52,12 @@ class CalendarState {
     List<TimeBlock>? blocks,
     List<ChatMessage>? messages,
     PendingConflict? pending,
+    DateTime? weekStart,
     bool clearPending = false,
   }) =>
       CalendarState(
         blocks: blocks ?? this.blocks,
-        weekStart: weekStart,
+        weekStart: weekStart ?? this.weekStart,
         messages: messages ?? this.messages,
         pending: clearPending ? null : (pending ?? this.pending),
       );
@@ -92,9 +93,24 @@ class CalendarController extends Notifier<CalendarState> {
         ),
       ],
       messages: const [
-        ChatMessage('Olá! Tente: "Tenho uma reunião de última hora hoje às 17h".'),
+        ChatMessage('Olá! Tente: "Tenho uma reunião de última hora hoje às 17h" ou "remover Estudar ML de hoje".'),
       ],
     );
+  }
+
+  DateTime get _today {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day);
+  }
+
+  void shiftWeek(int delta) {
+    final w = state.weekStart;
+    state = state.copyWith(weekStart: DateTime(w.year, w.month, w.day + 7 * delta));
+  }
+
+  void goToToday() {
+    final t = _today;
+    state = state.copyWith(weekStart: t.subtract(Duration(days: t.weekday - 1)));
   }
 
   void _say(String text, {bool user = false}) {
@@ -106,6 +122,11 @@ class CalendarController extends Notifier<CalendarState> {
     final t = text.trim();
     if (t.isEmpty) return;
     _say(t, user: true);
+    if (isRemoveCommand(t)) {
+      state = state.copyWith(clearPending: true);
+      _remove(parseRemove(t, DateTime.now(), state.weekStart));
+      return;
+    }
     final open = state.pending;
     if (open != null) {
       _handleReply(t, open);
@@ -117,6 +138,36 @@ class CalendarController extends Notifier<CalendarState> {
       return;
     }
     request(incoming);
+  }
+
+  void _remove(RemoveIntent r) {
+    if (r.isEmpty) {
+      _say('O que devo remover? Ex.: "remover Estudar ML de hoje" ou "remover Dom 8h".');
+      return;
+    }
+    final matches = state.blocks.where((b) {
+      if (r.day != null && !sameDay(b.start, r.day!)) return false;
+      if (r.minutes != null) {
+        final s = b.start.hour * 60 + b.start.minute;
+        if (!(s <= r.minutes! && r.minutes! < s + b.duration.inMinutes)) return false;
+      }
+      final t = b.title.toLowerCase();
+      return r.words.every(t.contains);
+    }).toList();
+    final dyn = matches.where((b) => b.layer == Layer.dynamic).toList();
+
+    if (matches.isEmpty) {
+      _say('Não encontrei nenhuma atividade com esse filtro.');
+    } else if (dyn.isEmpty) {
+      _say('Isso é da base fixa e eu não altero compromissos fixos. Edite direto no calendário.');
+    } else if (dyn.length > 1) {
+      final list = dyn.map((b) => '"${b.title}" (${dayDate(b.start)} ${hhmm(b.start)})').join(', ');
+      _say('Encontrei ${dyn.length} atividades: $list. Diga qual remover, ex.: "remover ${dyn.first.title}".');
+    } else {
+      final b = dyn.first;
+      state = state.copyWith(blocks: state.blocks.where((x) => x.id != b.id).toList());
+      _say('Removi "${b.title}" (${dayDate(b.start)} ${hhmm(b.start)}–${hhmm(b.end)}).');
+    }
   }
 
   void request(TimeBlock incoming) {
@@ -143,7 +194,7 @@ class CalendarController extends Notifier<CalendarState> {
     final sug = suggestSlots(
       base,
       duration: subject.duration,
-      weekStart: state.weekStart,
+      weekStart: _today,
       preferred: subject.start,
       ignoreIds: ignore,
       notBefore: DateTime.now(),
@@ -182,7 +233,7 @@ class CalendarController extends Notifier<CalendarState> {
       if (words.any(_no.contains)) {
         final sug = suggestSlots(state.blocks,
             duration: p.incoming.duration,
-            weekStart: state.weekStart,
+            weekStart: _today,
             preferred: p.incoming.start,
             notBefore: DateTime.now());
         state = state.copyWith(
@@ -206,7 +257,7 @@ class CalendarController extends Notifier<CalendarState> {
     final base = p.blockedByFixed ? state.blocks : [...state.blocks, p.incoming];
     final sug = suggestSlots(base,
         duration: subject.duration,
-        weekStart: state.weekStart,
+        weekStart: _today,
         preferred: pref,
         ignoreIds: ignore,
         notBefore: DateTime.now());
@@ -215,10 +266,10 @@ class CalendarController extends Notifier<CalendarState> {
       return;
     }
     state = state.copyWith(pending: p.copyWith(suggestions: sug));
-    if (sameDay(sug.first.start, pref)) {
+    if (sug.first.start == pref) {
       resolve(0);
     } else {
-      _say('Esse dia não tem janela livre. Estas são as opções mais próximas:');
+      _say('Não há janela livre exatamente nesse horário. Estas são as opções mais próximas:');
     }
   }
 
@@ -230,7 +281,7 @@ class CalendarController extends Notifier<CalendarState> {
     if (p.blockedByFixed) {
       final placed = p.incoming.copyWith(start: s.start, end: s.end);
       state = state.copyWith(blocks: [...state.blocks, placed], clearPending: true);
-      _say('Pronto: "${placed.title}" ${dayLabel(s.start)} às ${hhmm(s.start)}.');
+      _say('Pronto: "${placed.title}" ${dayDate(s.start)} às ${hhmm(s.start)}.');
       return;
     }
 
@@ -245,7 +296,7 @@ class CalendarController extends Notifier<CalendarState> {
           ? s
           : suggestSlots(working,
                   duration: c.duration,
-                  weekStart: state.weekStart,
+                  weekStart: _today,
                   preferred: s.start,
                   notBefore: DateTime.now(),
                   max: 1)
@@ -255,7 +306,7 @@ class CalendarController extends Notifier<CalendarState> {
         return;
       }
       working = [...working, c.copyWith(start: slot.start, end: slot.start.add(c.duration))];
-      moved.add('"${c.title}" → ${dayLabel(slot.start)} ${hhmm(slot.start)}');
+      moved.add('"${c.title}" → ${dayDate(slot.start)} ${hhmm(slot.start)}');
     }
     state = state.copyWith(blocks: working, clearPending: true);
     _say('Feito. ${p.incoming.title} às ${hhmm(p.incoming.start)}; ${moved.join(', ')}.');

@@ -44,6 +44,19 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
             selected: showDynamic,
             onSelected: (v) => setState(() => showDynamic = v),
           ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            onPressed: () => ref.read(calendarProvider.notifier).shiftWeek(-1),
+          ),
+          TextButton(
+            onPressed: () => ref.read(calendarProvider.notifier).goToToday(),
+            child: const Text('Hoje'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            onPressed: () => ref.read(calendarProvider.notifier).shiftWeek(1),
+          ),
         ]),
       ),
       Row(children: [
@@ -65,12 +78,13 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
       ]),
       Expanded(
         child: SingleChildScrollView(
+          padding: const EdgeInsets.only(top: 10, bottom: 24),
           child: SizedBox(
             height: (_endH - _startH) * _hourH,
             child: Row(children: [
               SizedBox(
                 width: _gutter,
-                child: Stack(children: [
+                child: Stack(clipBehavior: Clip.none, children: [
                   for (var h = _startH; h < _endH; h++)
                     Positioned(
                       top: (h - _startH) * _hourH - 7,
@@ -153,7 +167,7 @@ class _DayColumn extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: cs.error, width: 1.5),
-                color: cs.error.withOpacity(.08),
+                color: Color.alphaBlend(cs.error.withOpacity(.12), cs.surface),
               ),
               padding: const EdgeInsets.all(6),
               child: Text('${ghost!.title}?',

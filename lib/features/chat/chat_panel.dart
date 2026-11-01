@@ -73,7 +73,7 @@ class _ChatPanelState extends ConsumerState<ChatPanel> {
               ] else ...[
                 for (var i = 0; i < s.pending!.suggestions.length; i++)
                   ActionChip(
-                    label: Text('${dayLabel(s.pending!.suggestions[i].start)} ${hhmm(s.pending!.suggestions[i].start)}'),
+                    label: Text('${dayDate(s.pending!.suggestions[i].start)} ${hhmm(s.pending!.suggestions[i].start)}'),
                     onPressed: () => ref.read(calendarProvider.notifier).resolve(i),
                   ),
                 ActionChip(label: const Text('Cancelar'), onPressed: () => ref.read(calendarProvider.notifier).cancelPending()),

@@ -19,4 +19,21 @@ void main() {
     expect(s.length, 3);
     expect(s.first.start.hour, 10);
   });
+
+  test('oferece o horário exato preferido quando está livre', () {
+    final pref = DateTime(2026, 10, 26, 20);
+    final s = suggestSlots([b('a', 8, 2, Layer.fixed)],
+        duration: const Duration(hours: 1, minutes: 30), weekStart: mon, preferred: pref);
+    expect(s.first.start, pref);
+  });
+
+  test('procura janelas além da semana atual', () {
+    final sun = DateTime(2026, 11, 1);
+    final s = suggestSlots([],
+        duration: const Duration(hours: 1),
+        weekStart: sun,
+        preferred: DateTime(2026, 11, 2, 19),
+        notBefore: DateTime(2026, 11, 1, 21, 30));
+    expect(s.first.start, DateTime(2026, 11, 2, 19));
+  });
 }

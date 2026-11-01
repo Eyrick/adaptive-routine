@@ -1,27 +1,87 @@
 import '../../domain/models.dart';
 
 /// Substituto local do IntentService (LLM). Na M2 troca-se por tool calling.
-/// Entende: "reunião de última hora hoje às 17h", "dentista amanhã 9:30".
+/// Entende: "reunião hoje às 17h", "estudar das 8h às 9:30", "dentista quinta
+/// 14h por 2:30h", "adicione Estudar PAA amanhã 10h com duração de 45min".
 TimeBlock? parseIntent(String text, DateTime now) {
-  final m = RegExp(r'(\d{1,2})\s*(?:h|:)\s*(\d{2})?').firstMatch(text.toLowerCase());
-  if (m == null) return null;
-  final h = int.parse(m.group(1)!);
-  final min = int.tryParse(m.group(2) ?? '0') ?? 0;
-  if (h > 23 || min > 59) return null;
+  var work = text;
+  var lower = work.toLowerCase();
 
-  final lower = text.toLowerCase();
-  final offset = (lower.contains('amanhã') || lower.contains('amanha')) ? 1 : 0;
-  final start = DateTime(now.year, now.month, now.day + offset, h, min);
+  // 1) duração explícita: "por 2 horas", "por 2:30h", "com duração de 45min"
+  Duration? explicit;
+  final dm = RegExp(
+          r'(?:por|durante|(?:com\s+)?dura[çc][ãa]o(?:\s+de)?)\s+(?:(\d+)\s*[:h]\s*(\d{2})(?:\s*(?:h|min))?|(\d+(?:[.,]\d+)?)\s*(horas?|h|minutos?|min))')
+      .firstMatch(lower);
+  if (dm != null) {
+    if (dm.group(1) != null) {
+      explicit = Duration(hours: int.parse(dm.group(1)!), minutes: int.parse(dm.group(2)!));
+    } else {
+      final n = double.parse(dm.group(3)!.replaceAll(',', '.'));
+      explicit = Duration(minutes: dm.group(4)!.startsWith('h') ? (n * 60).round() : n.round());
+    }
+    work = work.replaceRange(dm.start, dm.end, ' ');
+    lower = work.toLowerCase();
+  }
 
-  const stop = {
-    'tenho', 'uma', 'um', 'hoje', 'amanhã', 'amanha', 'às', 'as', 'a', 'para',
-    'de', 'última', 'ultima', 'hora', 'marque', 'agende', 'me', 'preciso', 'eu',
-  };
-  final title = text
-      .replaceFirst(m.group(0)!, ' ')
-      .split(RegExp(r'\s+'))
-      .where((w) => w.isNotEmpty && !stop.contains(w.toLowerCase()))
-      .join(' ');
+  // 2) intervalo: "8h as 9:30", "das 8 às 10", "14h-15h30"
+  int sh, sm, eh = -1, em = 0;
+  final rm = RegExp(
+          r'(?:das|de)?\s*(\d{1,2})(?:\s*(?:h|:)\s*(\d{2})?)?\s*(?:às|as|até|ate|–|-|a)\s*(\d{1,2})(?:\s*(?:h|:)\s*(\d{2})?)?')
+      .firstMatch(lower);
+  if (rm != null) {
+    sh = int.parse(rm.group(1)!);
+    sm = int.tryParse(rm.group(2) ?? '') ?? 0;
+    eh = int.parse(rm.group(3)!);
+    em = int.tryParse(rm.group(4) ?? '') ?? 0;
+    work = work.replaceRange(rm.start, rm.end, ' ');
+  } else {
+    // 3) horário único: "17h", "9:30"
+    final m = RegExp(r'(\d{1,2})\s*(?:h|:)\s*(\d{2})?').firstMatch(lower);
+    if (m == null) return null;
+    sh = int.parse(m.group(1)!);
+    sm = int.tryParse(m.group(2) ?? '') ?? 0;
+    work = work.replaceRange(m.start, m.end, ' ');
+  }
+  if (sh > 23 || sm > 59 || eh > 23 || em > 59) return null;
+
+  // 4) dia (hoje / amanhã / dia da semana) e título
+  var offset = 0;
+  final kept = <String>[];
+  for (final raw in work.split(RegExp(r'\s+'))) {
+    if (raw.isEmpty) continue;
+    final w = raw.toLowerCase().replaceAll(RegExp(r'[.,;!?]'), '');
+    if (w == 'hoje') continue;
+    if (w == 'amanhã' || w == 'amanha') {
+      offset = 1;
+      continue;
+    }
+    final wd = _createWeekdays[w];
+    if (wd != null) {
+      offset = (wd - now.weekday) % 7;
+      continue;
+    }
+    kept.add(raw);
+  }
+
+  final start = DateTime(now.year, now.month, now.day + offset, sh, sm);
+  DateTime end;
+  if (eh >= 0) {
+    end = DateTime(now.year, now.month, now.day + offset, eh, em);
+    if (!end.isAfter(start)) return null;
+  } else {
+    end = start.add(explicit ?? const Duration(hours: 1));
+  }
+
+  // Só corta conectores/verbos nas pontas; "Estudo de Física" mantém o "de".
+  bool isFiller(String t) =>
+      _fillers.contains(t.toLowerCase().replaceAll(RegExp(r'[.,;!?]'), ''));
+  while (kept.isNotEmpty && isFiller(kept.first)) {
+    kept.removeAt(0);
+  }
+  while (kept.isNotEmpty && isFiller(kept.last)) {
+    kept.removeLast();
+  }
+  final title = kept.join(' ');
   final t = title.isEmpty ? 'Evento' : title[0].toUpperCase() + title.substring(1);
 
   return TimeBlock(
@@ -29,9 +89,24 @@ TimeBlock? parseIntent(String text, DateTime now) {
     title: t,
     layer: Layer.dynamic,
     start: start,
-    end: start.add(const Duration(hours: 1)),
+    end: end,
   );
 }
+
+const _createWeekdays = {
+  'segunda': 1, 'seg': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'qua': 3,
+  'quinta': 4, 'qui': 4, 'sexta': 5, 'sex': 5, 'sábado': 6, 'sabado': 6,
+  'sab': 6, 'domingo': 7, 'dom': 7,
+};
+
+const _fillers = {
+  'tenho', 'uma', 'um', 'uns', 'umas', 'para', 'pra', 'de', 'da', 'do', 'das',
+  'dos', 'as', 'às', 'a', 'o', 'e', 'na', 'no', 'em', 'até', 'ate', 'última',
+  'ultima', 'hora', 'marque', 'marcar', 'agende', 'agendar', 'adicione',
+  'adicionar', 'adiciona', 'coloque', 'coloca', 'inclua', 'crie', 'criar',
+  'anote', 'anotar', 'me', 'preciso', 'eu', 'por', 'favor', 'com', 'duração',
+  'duracao', 'durante',
+};
 
 /// Interpreta preferência de data/hora em respostas como "amanhã 19h" ou "quinta".
 DateTime? parsePreference(String text, DateTime now) {
@@ -61,4 +136,65 @@ DateTime? parsePreference(String text, DateTime now) {
   final h = m == null ? 8 : int.parse(m.group(1)!).clamp(0, 23);
   final min = m == null ? 0 : (int.tryParse(m.group(2) ?? '0') ?? 0).clamp(0, 59);
   return DateTime(day.year, day.month, day.day, h, min);
+}
+
+
+// ---------------------------------------------------------------- remoção
+
+class RemoveIntent {
+  const RemoveIntent({this.day, this.minutes, this.words = const []});
+  final DateTime? day; // dia alvo (null = qualquer)
+  final int? minutes; // minutos desde 00:00; bloco deve cobrir esse instante
+  final List<String> words; // palavras que o título deve conter
+  bool get isEmpty => day == null && minutes == null && words.isEmpty;
+}
+
+const _removeVerbs = {
+  'remover', 'remova', 'remove', 'cancelar', 'cancela', 'cancele', 'apagar',
+  'apague', 'apaga', 'excluir', 'exclua', 'tirar', 'tire', 'desmarcar', 'desmarque',
+};
+
+const _weekdays = {
+  'seg': 1, 'segunda': 1, 'ter': 2, 'terça': 2, 'terca': 2, 'qua': 3, 'quarta': 3,
+  'qui': 4, 'quinta': 4, 'sex': 5, 'sexta': 5, 'sab': 6, 'sáb': 6, 'sábado': 6,
+  'sabado': 6, 'dom': 7, 'domingo': 7,
+};
+
+bool isRemoveCommand(String text) {
+  final w = text.trim().toLowerCase().split(RegExp(r'\s+'));
+  return w.length > 1 && _removeVerbs.contains(w.first);
+}
+
+/// "remover programação de Dom 8h" -> dia = domingo da semana exibida, 08:00.
+RemoveIntent parseRemove(String text, DateTime now, DateTime weekStart) {
+  var work = text;
+  int? minutes;
+  final m = RegExp(r'(\d{1,2})\s*(?:h|:)\s*(\d{2})?').firstMatch(work.toLowerCase());
+  if (m != null) {
+    minutes = int.parse(m.group(1)!) * 60 + (int.tryParse(m.group(2) ?? '') ?? 0);
+    work = work.replaceRange(m.start, m.end, ' ');
+  }
+
+  const stop = {
+    'de', 'da', 'do', 'das', 'dos', 'dia', 'as', 'às', 'a', 'o', 'e', 'na', 'no',
+    'programação', 'programacao', 'agenda', 'atividade', 'compromisso', 'evento',
+    'tarefa', 'por', 'favor', 'pra', 'para', 'meu', 'minha',
+  };
+  final today = DateTime(now.year, now.month, now.day);
+  DateTime? day;
+  final words = <String>[];
+  for (final raw in work.split(RegExp(r'\s+'))) {
+    final w = raw.toLowerCase().replaceAll(RegExp(r'[.,;!?]'), '');
+    if (w.isEmpty || _removeVerbs.contains(w) || stop.contains(w)) continue;
+    if (w == 'hoje') {
+      day = today;
+    } else if (w == 'amanhã' || w == 'amanha') {
+      day = today.add(const Duration(days: 1));
+    } else if (_weekdays.containsKey(w)) {
+      day = DateTime(weekStart.year, weekStart.month, weekStart.day + _weekdays[w]! - 1);
+    } else {
+      words.add(w);
+    }
+  }
+  return RemoveIntent(day: day, minutes: minutes, words: words);
 }
