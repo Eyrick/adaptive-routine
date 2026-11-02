@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/block_repository.dart';
 import '../../domain/models.dart';
 import '../../domain/scheduling.dart';
 import '../chat/mock_intent.dart';
@@ -67,33 +68,35 @@ final calendarProvider =
     NotifierProvider<CalendarController, CalendarState>(CalendarController.new);
 
 class CalendarController extends Notifier<CalendarState> {
+  static const _backWeeks = 4, _aheadWeeks = 26;
+  DateTime _baseMonday = DateTime(2000);
+
   @override
   CalendarState build() {
+    final repo = ref.read(blockRepositoryProvider);
+    final saved = ref.read(initialBlocksProvider); // só camada dinâmica
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final monday = today.subtract(Duration(days: today.weekday - 1));
-    DateTime at(int d, int h, [int m = 0]) =>
-        DateTime(monday.year, monday.month, monday.day + d, h, m);
+    _baseMonday = monday;
+
+    final dynamicBlocks = saved ?? _seedDynamic(today);
+    if (saved == null) Future.microtask(() => repo.save(dynamicBlocks));
+
+    // Persiste a camada dinâmica sempre que a lista de blocos muda.
+    ref.listenSelf((prev, next) {
+      if (prev != null && !identical(prev.blocks, next.blocks)) {
+        repo.save(next.blocks.where((b) => b.layer == Layer.dynamic).toList());
+      }
+    });
 
     return CalendarState(
       weekStart: monday,
-      blocks: [
-        for (var d = 0; d < 5; d++)
-          TimeBlock(id: 'fx-calc-$d', title: 'Cálculo II', layer: Layer.fixed,
-              start: at(d, 8), end: at(d, 10)),
-        for (final d in [1, 3])
-          TimeBlock(id: 'fx-lab-$d', title: 'Laboratório', layer: Layer.fixed,
-              start: at(d, 14), end: at(d, 16)),
-        TimeBlock(
-          id: 'dy-fis',
-          title: 'Estudo de Física',
-          layer: Layer.dynamic,
-          start: DateTime(today.year, today.month, today.day, 17),
-          end: DateTime(today.year, today.month, today.day, 18, 30),
-        ),
-      ],
-      messages: const [
-        ChatMessage('Olá! Tente: "Tenho uma reunião de última hora hoje às 17h" ou "remover Estudar ML de hoje".'),
+      blocks: [..._expandFixed(monday, _backWeeks, _aheadWeeks), ...dynamicBlocks],
+      messages: [
+        ChatMessage(saved == null
+            ? 'Olá! Tente: "Tenho uma reunião de última hora hoje às 17h" ou "remover Estudar ML de hoje".'
+            : 'Bem-vindo de volta! Sua agenda foi carregada.'),
       ],
     );
   }
@@ -105,7 +108,10 @@ class CalendarController extends Notifier<CalendarState> {
 
   void shiftWeek(int delta) {
     final w = state.weekStart;
-    state = state.copyWith(weekStart: DateTime(w.year, w.month, w.day + 7 * delta));
+    final next = DateTime(w.year, w.month, w.day + 7 * delta);
+    final weeks = (next.difference(_baseMonday).inDays / 7).round();
+    if (weeks < -_backWeeks || weeks > _aheadWeeks) return;
+    state = state.copyWith(weekStart: next);
   }
 
   void goToToday() {
@@ -122,6 +128,17 @@ class CalendarController extends Notifier<CalendarState> {
     final t = text.trim();
     if (t.isEmpty) return;
     _say(t, user: true);
+    if (t.toLowerCase() == 'limpar atividades') {
+      final n = state.blocks.where((b) => b.layer == Layer.dynamic).length;
+      state = state.copyWith(
+        blocks: state.blocks.where((b) => b.layer == Layer.fixed).toList(),
+        clearPending: true,
+      );
+      _say(n == 0
+          ? 'Não há atividades para limpar.'
+          : 'Removi $n atividade(s) do calendário dinâmico. A base fixa não foi alterada.');
+      return;
+    }
     if (isRemoveCommand(t)) {
       state = state.copyWith(clearPending: true);
       _remove(parseRemove(t, DateTime.now(), state.weekStart));
@@ -317,3 +334,41 @@ class CalendarController extends Notifier<CalendarState> {
     _say('Ok, nada foi alterado.');
   }
 }
+
+
+// ---- Base fixa de demonstração (até o cadastro real da rotina, M4) ----------
+
+class _Rule {
+  const _Rule(this.id, this.title, this.days, this.startH, this.endH);
+  final String id, title;
+  final List<int> days; // 0 = segunda
+  final int startH, endH;
+}
+
+const _demoRules = [
+  _Rule('calc', 'Cálculo II', [0, 1, 2, 3, 4], 8, 10),
+  _Rule('lab', 'Laboratório', [1, 3], 14, 16),
+];
+
+List<TimeBlock> _expandFixed(DateTime baseMonday, int back, int ahead) => [
+      for (var w = -back; w <= ahead; w++)
+        for (final r in _demoRules)
+          for (final d in r.days)
+            TimeBlock(
+              id: 'fx-${r.id}-$w-$d',
+              title: r.title,
+              layer: Layer.fixed,
+              start: DateTime(baseMonday.year, baseMonday.month, baseMonday.day + w * 7 + d, r.startH),
+              end: DateTime(baseMonday.year, baseMonday.month, baseMonday.day + w * 7 + d, r.endH),
+            ),
+    ];
+
+List<TimeBlock> _seedDynamic(DateTime today) => [
+      TimeBlock(
+        id: 'dy-fis',
+        title: 'Estudo de Física',
+        layer: Layer.dynamic,
+        start: DateTime(today.year, today.month, today.day, 17),
+        end: DateTime(today.year, today.month, today.day, 18, 30),
+      ),
+    ];

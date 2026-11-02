@@ -3,10 +3,32 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'data/block_repository.dart';
+import 'domain/models.dart';
 import 'features/calendar/dual_calendar_view.dart';
 import 'features/chat/chat_panel.dart';
 
-void main() => runApp(const ProviderScope(child: AdaptiveRoutineApp()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  BlockRepository repo;
+  List<TimeBlock>? saved;
+  try {
+    final file = await FileBlockRepository.open();
+    debugPrint('Agenda salva em: ${file.path}');
+    saved = await file.load();
+    repo = file;
+  } catch (e) {
+    debugPrint('Sem armazenamento local, usando memória: $e');
+    repo = MemoryBlockRepository();
+  }
+  runApp(ProviderScope(
+    overrides: [
+      blockRepositoryProvider.overrideWithValue(repo),
+      initialBlocksProvider.overrideWithValue(saved),
+    ],
+    child: const AdaptiveRoutineApp(),
+  ));
+}
 
 class AdaptiveRoutineApp extends StatelessWidget {
   const AdaptiveRoutineApp({super.key});

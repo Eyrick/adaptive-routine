@@ -23,6 +23,22 @@ class TimeBlock {
 
   bool overlaps(TimeBlock o) => start.isBefore(o.end) && o.start.isBefore(end);
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'layer': layer.name,
+        'start': start.millisecondsSinceEpoch,
+        'end': end.millisecondsSinceEpoch,
+      };
+
+  factory TimeBlock.fromJson(Map<String, dynamic> j) => TimeBlock(
+        id: j['id'] as String,
+        title: j['title'] as String,
+        layer: Layer.values.byName(j['layer'] as String),
+        start: DateTime.fromMillisecondsSinceEpoch(j['start'] as int),
+        end: DateTime.fromMillisecondsSinceEpoch(j['end'] as int),
+      );
+
   TimeBlock copyWith({DateTime? start, DateTime? end}) => TimeBlock(
         id: id,
         title: title,

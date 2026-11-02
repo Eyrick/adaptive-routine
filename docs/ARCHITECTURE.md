@@ -189,3 +189,10 @@ sequenceDiagram
 
 ## 10. Documentos a produzir na sequência
 `DESIGN_SYSTEM.md` (tokens, estados Fixo vs Dinâmico, responsivo) e `UX.md` (diagrama do fluxo de conflito).
+
+## 11. Decisão registrada no M1 (persistência)
+
+- A camada **dinâmica** é salva em `schedule.json` (diretório de suporte do app), com escrita atômica (arquivo temporário + rename) e fila de gravações.
+- O acesso passa por `BlockRepository` (`lib/data/block_repository.dart`). A troca por **Drift/SQLite** é prevista quando houver recorrência real (M4) e sync, sem mudar controller nem UI.
+- A **base fixa** ainda é de demonstração: gerada por regras semanais em código (4 semanas atrás, 26 à frente). O cadastro real e a persistência dela entram no M4.
+- Arquivo ilegível é renomeado para `schedule.json.corrupt` em vez de sobrescrito.
