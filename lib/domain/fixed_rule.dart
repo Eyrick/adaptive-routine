@@ -4,6 +4,10 @@ import 'models.dart';
 
 const weekdayShort = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
+/// 2026-11-05 -> "2026-11-05" (chave de data usada nas aulas canceladas).
+String dateKey(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
 /// Minutos desde 00:00 -> "08:30" (1440 vira "24:00").
 String fmtMinutes(int m) =>
     '${(m ~/ 60).toString().padLeft(2, '0')}:${(m % 60).toString().padLeft(2, '0')}';
@@ -18,6 +22,7 @@ class FixedRule {
     required this.weekdays,
     required this.startMin,
     required this.endMin,
+    this.skipDates = const [],
   });
 
   final String id;
@@ -25,6 +30,18 @@ class FixedRule {
   final List<int> weekdays;
   final int startMin; // minutos desde 00:00
   final int endMin; // pode ser 1440 (meia-noite)
+  /// Datas ("yyyy-MM-dd") em que a aula foi cancelada. A regra segue valendo
+  /// nas outras semanas.
+  final List<String> skipDates;
+
+  FixedRule copyWith({List<String>? skipDates}) => FixedRule(
+        id: id,
+        title: title,
+        weekdays: weekdays,
+        startMin: startMin,
+        endMin: endMin,
+        skipDates: skipDates ?? this.skipDates,
+      );
 
   String get daysLabel => weekdays.map((d) => weekdayShort[d - 1]).join(' · ');
 
@@ -34,6 +51,7 @@ class FixedRule {
         'weekdays': weekdays,
         'startMin': startMin,
         'endMin': endMin,
+        'skip': skipDates,
       };
 
   factory FixedRule.fromJson(Map<String, dynamic> j) => FixedRule(
@@ -42,6 +60,7 @@ class FixedRule {
         weekdays: [for (final d in j['weekdays'] as List) d as int],
         startMin: j['startMin'] as int,
         endMin: j['endMin'] as int,
+        skipDates: [for (final d in (j['skip'] as List? ?? const [])) d as String],
       );
 }
 
@@ -65,18 +84,22 @@ List<TimeBlock> expandRules(
   DateTime baseMonday,
   int back,
   int ahead,
-) =>
-    [
-      for (var w = -back; w <= ahead; w++)
-        for (final r in rules)
-          for (final wd in r.weekdays)
-            TimeBlock(
-              id: 'fx-${r.id}-$w-$wd',
-              title: r.title,
-              layer: Layer.fixed,
-              start: DateTime(baseMonday.year, baseMonday.month,
-                  baseMonday.day + w * 7 + (wd - 1), 0, r.startMin),
-              end: DateTime(baseMonday.year, baseMonday.month,
-                  baseMonday.day + w * 7 + (wd - 1), 0, r.endMin),
-            ),
-    ];
+) {
+  final out = <TimeBlock>[];
+  for (var w = -back; w <= ahead; w++) {
+    for (final r in rules) {
+      for (final wd in r.weekdays) {
+        final day = DateTime(baseMonday.year, baseMonday.month, baseMonday.day + w * 7 + (wd - 1));
+        if (r.skipDates.contains(dateKey(day))) continue;
+        out.add(TimeBlock(
+          id: 'fx-${r.id}-$w-$wd',
+          title: r.title,
+          layer: Layer.fixed,
+          start: DateTime(day.year, day.month, day.day, 0, r.startMin),
+          end: DateTime(day.year, day.month, day.day, 0, r.endMin),
+        ));
+      }
+    }
+  }
+  return out;
+}

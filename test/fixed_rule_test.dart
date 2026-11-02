@@ -59,4 +59,19 @@ void main() {
     expect(loaded!.single.endMin, 600);
     await dir.delete(recursive: true);
   });
+
+  test('data cancelada some só naquele dia e sobrevive ao JSON', () {
+    final r = calc.copyWith(skipDates: [dateKey(DateTime(2026, 10, 28))]); // quarta
+    final blocks = expandRules([r], monday, 0, 1);
+    expect(blocks.length, 3);
+    expect(blocks.any((b) => b.start.day == 28), isFalse);
+    expect(blocks.any((b) => b.start.day == 26), isTrue); // segunda segue
+    final back = FixedRule.fromJson(r.toJson());
+    expect(back.skipDates, ['2026-10-28']);
+    // arquivo antigo, sem o campo "skip"
+    final old = FixedRule.fromJson({
+      'id': 'x', 'title': 'T', 'weekdays': [1], 'startMin': 480, 'endMin': 600,
+    });
+    expect(old.skipDates, isEmpty);
+  });
 }

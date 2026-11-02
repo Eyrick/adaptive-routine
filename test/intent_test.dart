@@ -57,4 +57,31 @@ void main() {
     expect(b.start, DateTime(2026, 11, 5, 15));
     expect(b.title, 'Reunião');
   });
+
+  test('normalizeText ignora acento e pontuação', () {
+    expect(normalizeText('Lóg. Prog.'), 'log prog');
+    expect(normalizeText('ÁGUA, Coração!'), 'agua coracao');
+  });
+
+  test('"13:30h" não deixa o h solto', () {
+    final b = parseIntent('estudar hoje 13:30h', now)!;
+    expect(b.title, 'Estudar');
+    expect(b.start, DateTime(2026, 11, 1, 13, 30));
+  });
+
+  test('aula cancelada: frase do usuário', () {
+    const text = 'aula de Log. Prog. 13:30h de quinta feira foi cancelada';
+    expect(isCancelStatement(text), isTrue);
+    expect(isCancelStatement('reunião hoje às 17h'), isFalse);
+    final r = parseRemove(text, now, DateTime(2026, 10, 26));
+    expect(r.day, DateTime(2026, 11, 5)); // quinta desta semana já passou
+    expect(r.minutes, 13 * 60 + 30);
+    expect(r.words, ['log', 'prog']);
+  });
+
+  test('restaurar', () {
+    expect(isRestoreCommand('restaurar Lóg. Prog. quinta'), isTrue);
+    expect(isRestoreCommand('desfazer cancelamento quinta'), isTrue);
+    expect(isRestoreCommand('remover quinta'), isFalse);
+  });
 }

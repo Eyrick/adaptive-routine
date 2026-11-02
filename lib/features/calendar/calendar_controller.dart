@@ -199,7 +199,12 @@ class CalendarController extends Notifier<CalendarState> {
           : 'Removi $n atividade(s) do calendário dinâmico. A base fixa não foi alterada.');
       return;
     }
-    if (isRemoveCommand(t)) {
+    if (isRestoreCommand(t)) {
+      state = state.copyWith(clearPending: true);
+      _restore(parseRemove(t, DateTime.now(), state.weekStart));
+      return;
+    }
+    if (isRemoveCommand(t) || isCancelStatement(t)) {
       state = state.copyWith(clearPending: true);
       _remove(parseRemove(t, DateTime.now(), state.weekStart));
       return;
@@ -219,7 +224,7 @@ class CalendarController extends Notifier<CalendarState> {
 
   void _remove(RemoveIntent r) {
     if (r.isEmpty) {
-      _say('O que devo remover? Ex.: "remover Estudar ML de hoje" ou "remover Dom 8h".');
+      _say('O que devo remover? Ex.: "remover Estudar ML de hoje" ou "aula de Cálculo de quinta foi cancelada".');
       return;
     }
     final matches = state.blocks.where((b) {
@@ -228,15 +233,16 @@ class CalendarController extends Notifier<CalendarState> {
         final s = b.start.hour * 60 + b.start.minute;
         if (!(s <= r.minutes! && r.minutes! < s + b.duration.inMinutes)) return false;
       }
-      final t = b.title.toLowerCase();
+      final t = normalizeText(b.title);
       return r.words.every(t.contains);
     }).toList();
     final dyn = matches.where((b) => b.layer == Layer.dynamic).toList();
+    final fixed = matches.where((b) => b.layer == Layer.fixed).toList();
 
     if (matches.isEmpty) {
       _say('Não encontrei nenhuma atividade com esse filtro.');
     } else if (dyn.isEmpty) {
-      _say('Isso é da base fixa e eu não altero compromissos fixos. Edite direto no calendário.');
+      _cancelFixed(fixed, r);
     } else if (dyn.length > 1) {
       final list = dyn.map((b) => '"${b.title}" (${dayDate(b.start)} ${hhmm(b.start)})').join(', ');
       _say('Encontrei ${dyn.length} atividades: $list. Diga qual remover, ex.: "remover ${dyn.first.title}".');
@@ -245,6 +251,65 @@ class CalendarController extends Notifier<CalendarState> {
       state = state.copyWith(blocks: state.blocks.where((x) => x.id != b.id).toList());
       _say('Removi "${b.title}" (${dayDate(b.start)} ${hhmm(b.start)}–${hhmm(b.end)}).');
     }
+  }
+
+  /// Cancela só a ocorrência daquele dia; a regra da rotina fixa não muda.
+  void _cancelFixed(List<TimeBlock> fixed, RemoveIntent r) {
+    if (r.day == null) {
+      _say('"${fixed.first.title}" é da rotina fixa. Diga o dia para eu cancelar só aquela aula, '
+          'ex.: "aula de ${fixed.first.title} de quinta foi cancelada". Para remover de todas as semanas, use Rotina fixa.');
+      return;
+    }
+    if (fixed.length > 1 && r.words.isEmpty && r.minutes == null) {
+      final list = fixed.map((b) => '"${b.title}" (${hhmm(b.start)})').join(', ');
+      _say('Há ${fixed.length} compromissos fixos em ${dayDate(r.day!)}: $list. Diga qual foi cancelado.');
+      return;
+    }
+    final key = dateKey(r.day!);
+    var rules = state.rules;
+    final done = <String>[];
+    for (final b in fixed) {
+      final rule = rules.where((x) => b.id.startsWith('fx-${x.id}-')).firstOrNull;
+      if (rule == null || rule.skipDates.contains(key)) continue;
+      rules = [
+        for (final x in rules)
+          x.id == rule.id ? x.copyWith(skipDates: [...x.skipDates, key]) : x,
+      ];
+      done.add('"${b.title}" ${hhmm(b.start)}–${hhmm(b.end)}');
+    }
+    if (done.isEmpty) {
+      _say('Essa aula já está cancelada em ${dayDate(r.day!)}.');
+      return;
+    }
+    final dow = weekdayShort[r.day!.weekday - 1].toLowerCase();
+    _applyRules(
+      rules,
+      'Cancelei só em ${dayDate(r.day!)}: ${done.join(', ')}. A rotina fixa continua valendo nas outras semanas. '
+      'Para desfazer: "restaurar ${fixed.first.title} $dow".',
+    );
+  }
+
+  void _restore(RemoveIntent r) {
+    if (r.day == null) {
+      _say('Qual dia? Ex.: "restaurar Lóg. Prog. quinta".');
+      return;
+    }
+    final key = dateKey(r.day!);
+    final hit = state.rules
+        .where((x) => x.skipDates.contains(key) && r.words.every(normalizeText(x.title).contains))
+        .toList();
+    if (hit.isEmpty) {
+      _say('Não encontrei aula cancelada em ${dayDate(r.day!)}.');
+      return;
+    }
+    final ids = hit.map((x) => x.id).toSet();
+    _applyRules(
+      [
+        for (final x in state.rules)
+          ids.contains(x.id) ? x.copyWith(skipDates: x.skipDates.where((d) => d != key).toList()) : x,
+      ],
+      'Restaurei ${hit.map((x) => '"${x.title}"').join(', ')} em ${dayDate(r.day!)}.',
+    );
   }
 
   void request(TimeBlock incoming) {

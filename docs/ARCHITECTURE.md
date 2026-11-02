@@ -204,3 +204,9 @@ sequenceDiagram
 - Os blocos fixos são **expandidos em memória** (4 semanas atrás, 26 à frente) a partir das regras; só as regras são persistidas.
 - A grade do calendário cresce além de 08–22h quando há blocos fora dessa faixa. As sugestões de janela da IA continuam usando 08–22h como horário ativo.
 - Ao salvar ou remover uma regra, o app avisa no chat se atividades dinâmicas futuras passaram a colidir com a rotina fixa. O reencaixe automático fica para a edição direta/comando "mover".
+
+## 13. Aula cancelada (exceção pontual)
+
+- `FixedRule.skipDates` guarda datas (`yyyy-MM-dd`) em que a aula não acontece. A regra segue valendo nas outras semanas; só aquela ocorrência deixa de ser gerada.
+- O usuário informa pelo chat ("aula de Lóg. Prog. de quinta foi cancelada"); o app cancela apenas a ocorrência e avisa como desfazer ("restaurar Lóg. Prog. quinta"). A regra em si só muda na tela Rotina fixa.
+- Compatível com arquivos antigos: `routine.json` sem o campo `skip` carrega normalmente.

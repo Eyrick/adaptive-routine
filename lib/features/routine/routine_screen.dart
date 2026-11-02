@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/fixed_rule.dart';
+import '../../domain/scheduling.dart';
 import '../calendar/calendar_controller.dart';
 
 /// Tela de cadastro da rotina fixa (Camada 1). Só o usuário edita aqui:
@@ -63,10 +64,17 @@ class RoutineScreen extends ConsumerWidget {
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (_, i) {
                 final r = rules[i];
+                final todayKey = dateKey(DateTime.now());
+                final cancelled = (r.skipDates.where((d) => d.compareTo(todayKey) >= 0).toList()..sort())
+                    .map((d) => dayDate(DateTime.parse(d)))
+                    .join(', ');
                 return ListTile(
                   leading: const Icon(Icons.lock_outline),
                   title: Text(r.title),
-                  subtitle: Text('${r.daysLabel} · ${fmtMinutes(r.startMin)}–${fmtMinutes(r.endMin)}'),
+                  isThreeLine: cancelled.isNotEmpty,
+                  subtitle: Text(
+                      '${r.daysLabel} · ${fmtMinutes(r.startMin)}–${fmtMinutes(r.endMin)}'
+                      '${cancelled.isEmpty ? '' : '\nCanceladas: $cancelled'}'),
                   onTap: () => _edit(context, ref, r),
                   trailing: IconButton(
                     tooltip: 'Remover',
@@ -126,6 +134,7 @@ class _RuleEditorDialogState extends State<RuleEditorDialog> {
         weekdays: (_days.toList()..sort()),
         startMin: _start,
         endMin: _end,
+        skipDates: widget.initial?.skipDates ?? const [],
       ),
     );
   }

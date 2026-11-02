@@ -36,7 +36,7 @@ TimeBlock? parseIntent(String text, DateTime now) {
     work = work.replaceRange(rm.start, rm.end, ' ');
   } else {
     // 3) horário único: "17h", "9:30"
-    final m = RegExp(r'(\d{1,2})\s*(?:h|:)\s*(\d{2})?').firstMatch(lower);
+    final m = RegExp(r'(\d{1,2})\s*(?:h|:)\s*(\d{2})?(?:\s*h\b)?').firstMatch(lower);
     if (m == null) return null;
     sh = int.parse(m.group(1)!);
     sm = int.tryParse(m.group(2) ?? '') ?? 0;
@@ -130,7 +130,7 @@ DateTime? parsePreference(String text, DateTime now) {
       }
     }
   }
-  final m = RegExp(r'(\d{1,2})\s*(?:h|:)\s*(\d{2})?').firstMatch(t);
+  final m = RegExp(r'(\d{1,2})\s*(?:h|:)\s*(\d{2})?(?:\s*h\b)?').firstMatch(t);
   if (day == null && m == null) return null;
   day ??= today;
   final h = m == null ? 8 : int.parse(m.group(1)!).clamp(0, 23);
@@ -141,11 +141,23 @@ DateTime? parsePreference(String text, DateTime now) {
 
 // ---------------------------------------------------------------- remoção
 
+/// Minúsculas, sem acento e sem pontuação: "Lóg. Prog." -> "log prog".
+String normalizeText(String s) {
+  const from = 'áàâãäéèêëíìîïóòôõöúùûüçñ';
+  const to = 'aaaaaeeeeiiiiooooouuuucn';
+  final b = StringBuffer();
+  for (final ch in s.toLowerCase().runes.map(String.fromCharCode)) {
+    final i = from.indexOf(ch);
+    b.write(i >= 0 ? to[i] : ch);
+  }
+  return b.toString().replaceAll(RegExp(r'[.,;!?]'), '');
+}
+
 class RemoveIntent {
   const RemoveIntent({this.day, this.minutes, this.words = const []});
   final DateTime? day; // dia alvo (null = qualquer)
   final int? minutes; // minutos desde 00:00; bloco deve cobrir esse instante
-  final List<String> words; // palavras que o título deve conter
+  final List<String> words; // palavras (normalizadas) que o título deve conter
   bool get isEmpty => day == null && minutes == null && words.isEmpty;
 }
 
@@ -154,10 +166,12 @@ const _removeVerbs = {
   'apague', 'apaga', 'excluir', 'exclua', 'tirar', 'tire', 'desmarcar', 'desmarque',
 };
 
+const _restoreVerbs = {'restaurar', 'restaure', 'reativar', 'reative'};
+
 const _weekdays = {
-  'seg': 1, 'segunda': 1, 'ter': 2, 'terça': 2, 'terca': 2, 'qua': 3, 'quarta': 3,
-  'qui': 4, 'quinta': 4, 'sex': 5, 'sexta': 5, 'sab': 6, 'sáb': 6, 'sábado': 6,
-  'sabado': 6, 'dom': 7, 'domingo': 7,
+  'seg': 1, 'segunda': 1, 'ter': 2, 'terca': 2, 'qua': 3, 'quarta': 3,
+  'qui': 4, 'quinta': 4, 'sex': 5, 'sexta': 5, 'sab': 6, 'sabado': 6,
+  'dom': 7, 'domingo': 7,
 };
 
 bool isRemoveCommand(String text) {
@@ -165,33 +179,55 @@ bool isRemoveCommand(String text) {
   return w.length > 1 && _removeVerbs.contains(w.first);
 }
 
+/// "aula de Lóg. Prog. de quinta foi cancelada", "sem aula amanhã".
+bool isCancelStatement(String text) {
+  final t = normalizeText(text);
+  return t.contains('cancelad') ||
+      t.contains('cancelou') ||
+      t.contains('sem aula') ||
+      t.contains('nao vai ter aula') ||
+      t.contains('nao havera aula');
+}
+
+/// "restaurar Lóg. Prog. quinta" / "desfazer cancelamento quinta".
+bool isRestoreCommand(String text) {
+  final t = normalizeText(text).trim();
+  final w = t.split(RegExp(r'\s+'));
+  return (w.length > 1 && _restoreVerbs.contains(w.first)) ||
+      t.startsWith('desfazer cancelamento');
+}
+
 /// "remover programação de Dom 8h" -> dia = domingo da semana exibida, 08:00.
+/// Dia da semana que já passou nesta semana vira o da semana seguinte.
 RemoveIntent parseRemove(String text, DateTime now, DateTime weekStart) {
   var work = text;
   int? minutes;
-  final m = RegExp(r'(\d{1,2})\s*(?:h|:)\s*(\d{2})?').firstMatch(work.toLowerCase());
+  final m = RegExp(r'(\d{1,2})\s*(?:h|:)\s*(\d{2})?(?:\s*h\b)?').firstMatch(work.toLowerCase());
   if (m != null) {
     minutes = int.parse(m.group(1)!) * 60 + (int.tryParse(m.group(2) ?? '') ?? 0);
     work = work.replaceRange(m.start, m.end, ' ');
   }
 
   const stop = {
-    'de', 'da', 'do', 'das', 'dos', 'dia', 'as', 'às', 'a', 'o', 'e', 'na', 'no',
-    'programação', 'programacao', 'agenda', 'atividade', 'compromisso', 'evento',
-    'tarefa', 'por', 'favor', 'pra', 'para', 'meu', 'minha',
+    'de', 'da', 'do', 'das', 'dos', 'dia', 'as', 'a', 'o', 'e', 'na', 'no',
+    'programacao', 'agenda', 'atividade', 'compromisso', 'evento', 'tarefa',
+    'por', 'favor', 'pra', 'para', 'meu', 'minha', 'aula', 'aulas', 'foi',
+    'cancelada', 'cancelado', 'cancelou', 'cancelamento', 'feira', 'sem',
+    'restaurar', 'restaure', 'reativar', 'reative', 'desfazer',
   };
   final today = DateTime(now.year, now.month, now.day);
   DateTime? day;
   final words = <String>[];
   for (final raw in work.split(RegExp(r'\s+'))) {
-    final w = raw.toLowerCase().replaceAll(RegExp(r'[.,;!?]'), '');
+    final w = normalizeText(raw).replaceAll('-feira', '');
     if (w.isEmpty || _removeVerbs.contains(w) || stop.contains(w)) continue;
     if (w == 'hoje') {
       day = today;
-    } else if (w == 'amanhã' || w == 'amanha') {
+    } else if (w == 'amanha') {
       day = today.add(const Duration(days: 1));
     } else if (_weekdays.containsKey(w)) {
-      day = DateTime(weekStart.year, weekStart.month, weekStart.day + _weekdays[w]! - 1);
+      final base = DateTime(weekStart.year, weekStart.month, weekStart.day + _weekdays[w]! - 1);
+      day = base.isBefore(today) ? DateTime(base.year, base.month, base.day + 7) : base;
     } else {
       words.add(w);
     }
