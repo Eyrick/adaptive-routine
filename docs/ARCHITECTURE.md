@@ -196,3 +196,11 @@ sequenceDiagram
 - O acesso passa por `BlockRepository` (`lib/data/block_repository.dart`). A troca por **Drift/SQLite** é prevista quando houver recorrência real (M4) e sync, sem mudar controller nem UI.
 - A **base fixa** ainda é de demonstração: gerada por regras semanais em código (4 semanas atrás, 26 à frente). O cadastro real e a persistência dela entram no M4.
 - Arquivo ilegível é renomeado para `schedule.json.corrupt` em vez de sobrescrito.
+
+## 12. Decisão registrada no M4 (rotina fixa real)
+
+- A base fixa deixa de ser demonstração: o usuário cadastra **regras semanais** (`FixedRule`: nome, dias, início, fim) na tela `Rotina fixa`. É a única forma de editar a Camada 1; a IA nunca altera esses blocos.
+- As regras ficam em `routine.json` (mesmo padrão do `schedule.json`: escrita atômica, backup `.corrupt`), atrás de `RuleRepository`.
+- Os blocos fixos são **expandidos em memória** (4 semanas atrás, 26 à frente) a partir das regras; só as regras são persistidas.
+- A grade do calendário cresce além de 08–22h quando há blocos fora dessa faixa. As sugestões de janela da IA continuam usando 08–22h como horário ativo.
+- Ao salvar ou remover uma regra, o app avisa no chat se atividades dinâmicas futuras passaram a colidir com a rotina fixa. O reencaixe automático fica para a edição direta/comando "mover".

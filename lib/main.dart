@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/block_repository.dart';
+import 'data/rule_repository.dart';
+import 'domain/fixed_rule.dart';
 import 'domain/models.dart';
 import 'features/calendar/dual_calendar_view.dart';
 import 'features/chat/chat_panel.dart';
@@ -21,10 +23,23 @@ Future<void> main() async {
     debugPrint('Sem armazenamento local, usando memória: $e');
     repo = MemoryBlockRepository();
   }
+  RuleRepository ruleRepo;
+  List<FixedRule>? savedRules;
+  try {
+    final file = await FileRuleRepository.open();
+    debugPrint('Rotina fixa salva em: ${file.path}');
+    savedRules = await file.load();
+    ruleRepo = file;
+  } catch (e) {
+    debugPrint('Sem armazenamento para a rotina fixa, usando memória: $e');
+    ruleRepo = MemoryRuleRepository();
+  }
   runApp(ProviderScope(
     overrides: [
       blockRepositoryProvider.overrideWithValue(repo),
       initialBlocksProvider.overrideWithValue(saved),
+      ruleRepositoryProvider.overrideWithValue(ruleRepo),
+      initialRulesProvider.overrideWithValue(savedRules),
     ],
     child: const AdaptiveRoutineApp(),
   ));

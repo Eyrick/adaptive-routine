@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/block_repository.dart';
+import '../../data/rule_repository.dart';
+import '../../domain/fixed_rule.dart';
 import '../../domain/models.dart';
 import '../../domain/scheduling.dart';
 import '../chat/mock_intent.dart';
@@ -43,22 +45,26 @@ class CalendarState {
     required this.weekStart,
     this.pending,
     this.messages = const [],
+    this.rules = const [],
   });
   final List<TimeBlock> blocks;
   final DateTime weekStart;
   final PendingConflict? pending;
   final List<ChatMessage> messages;
+  final List<FixedRule> rules; // rotina fixa cadastrada pelo usuário
 
   CalendarState copyWith({
     List<TimeBlock>? blocks,
     List<ChatMessage>? messages,
     PendingConflict? pending,
     DateTime? weekStart,
+    List<FixedRule>? rules,
     bool clearPending = false,
   }) =>
       CalendarState(
         blocks: blocks ?? this.blocks,
         weekStart: weekStart ?? this.weekStart,
+        rules: rules ?? this.rules,
         messages: messages ?? this.messages,
         pending: clearPending ? null : (pending ?? this.pending),
       );
@@ -73,30 +79,38 @@ class CalendarController extends Notifier<CalendarState> {
 
   @override
   CalendarState build() {
-    final repo = ref.read(blockRepositoryProvider);
+    final blockRepo = ref.read(blockRepositoryProvider);
+    final ruleRepo = ref.read(ruleRepositoryProvider);
     final saved = ref.read(initialBlocksProvider); // só camada dinâmica
+    final rules = ref.read(initialRulesProvider) ?? const <FixedRule>[];
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final monday = today.subtract(Duration(days: today.weekday - 1));
     _baseMonday = monday;
 
     final dynamicBlocks = saved ?? _seedDynamic(today);
-    if (saved == null) Future.microtask(() => repo.save(dynamicBlocks));
+    if (saved == null) Future.microtask(() => blockRepo.save(dynamicBlocks));
 
-    // Persiste a camada dinâmica sempre que a lista de blocos muda.
+    // Persiste sempre que blocos dinâmicos ou rotina fixa mudam.
     ref.listenSelf((prev, next) {
-      if (prev != null && !identical(prev.blocks, next.blocks)) {
-        repo.save(next.blocks.where((b) => b.layer == Layer.dynamic).toList());
+      if (prev == null) return;
+      if (!identical(prev.blocks, next.blocks)) {
+        blockRepo.save(next.blocks.where((b) => b.layer == Layer.dynamic).toList());
       }
+      if (!identical(prev.rules, next.rules)) ruleRepo.save(next.rules);
     });
 
     return CalendarState(
       weekStart: monday,
-      blocks: [..._expandFixed(monday, _backWeeks, _aheadWeeks), ...dynamicBlocks],
+      rules: rules,
+      blocks: [...expandRules(rules, monday, _backWeeks, _aheadWeeks), ...dynamicBlocks],
       messages: [
         ChatMessage(saved == null
             ? 'Olá! Tente: "Tenho uma reunião de última hora hoje às 17h" ou "remover Estudar ML de hoje".'
             : 'Bem-vindo de volta! Sua agenda foi carregada.'),
+        if (rules.isEmpty)
+          const ChatMessage(
+              'Você ainda não cadastrou sua rotina fixa. Toque em "Rotina fixa" no topo do calendário para adicionar suas aulas e compromissos.'),
       ],
     );
   }
@@ -117,6 +131,52 @@ class CalendarController extends Notifier<CalendarState> {
   void goToToday() {
     final t = _today;
     state = state.copyWith(weekStart: t.subtract(Duration(days: t.weekday - 1)));
+  }
+
+  // ---- Rotina fixa (cadastro manual; a IA nunca altera estes blocos) ---------
+
+  void saveRule(FixedRule rule) {
+    final isNew = !state.rules.any((r) => r.id == rule.id);
+    final rules = [...state.rules.where((r) => r.id != rule.id), rule]
+      ..sort((a, b) {
+        final c = a.weekdays.first.compareTo(b.weekdays.first);
+        return c != 0 ? c : a.startMin.compareTo(b.startMin);
+      });
+    _applyRules(
+      rules,
+      '${isNew ? 'Adicionei' : 'Atualizei'} na rotina fixa: "${rule.title}" '
+      '(${rule.daysLabel}, ${fmtMinutes(rule.startMin)}–${fmtMinutes(rule.endMin)}).',
+    );
+  }
+
+  void deleteRule(String id) {
+    final rule = state.rules.where((r) => r.id == id).firstOrNull;
+    if (rule == null) return;
+    _applyRules(
+      state.rules.where((r) => r.id != id).toList(),
+      'Removi "${rule.title}" da rotina fixa.',
+    );
+  }
+
+  void _applyRules(List<FixedRule> rules, String note) {
+    final dyn = state.blocks.where((b) => b.layer == Layer.dynamic).toList();
+    final fixed = expandRules(rules, _baseMonday, _backWeeks, _aheadWeeks);
+    final now = DateTime.now();
+    final clashes = dyn
+        .where((d) => d.end.isAfter(now) && fixed.any((f) => f.overlaps(d)))
+        .toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+
+    state = state.copyWith(rules: rules, blocks: [...fixed, ...dyn], clearPending: true);
+    _say(note);
+    if (clashes.isNotEmpty) {
+      final list = clashes
+          .take(5)
+          .map((b) => '"${b.title}" (${dayDate(b.start)} ${hhmm(b.start)})')
+          .join(', ');
+      _say('Atenção: ${clashes.length} atividade(s) do calendário dinâmico agora colidem com a rotina fixa: $list. '
+          'Use "remover <nome>" se quiser tirar alguma.');
+    }
   }
 
   void _say(String text, {bool user = false}) {
@@ -335,33 +395,6 @@ class CalendarController extends Notifier<CalendarState> {
   }
 }
 
-
-// ---- Base fixa de demonstração (até o cadastro real da rotina, M4) ----------
-
-class _Rule {
-  const _Rule(this.id, this.title, this.days, this.startH, this.endH);
-  final String id, title;
-  final List<int> days; // 0 = segunda
-  final int startH, endH;
-}
-
-const _demoRules = [
-  _Rule('calc', 'Cálculo II', [0, 1, 2, 3, 4], 8, 10),
-  _Rule('lab', 'Laboratório', [1, 3], 14, 16),
-];
-
-List<TimeBlock> _expandFixed(DateTime baseMonday, int back, int ahead) => [
-      for (var w = -back; w <= ahead; w++)
-        for (final r in _demoRules)
-          for (final d in r.days)
-            TimeBlock(
-              id: 'fx-${r.id}-$w-$d',
-              title: r.title,
-              layer: Layer.fixed,
-              start: DateTime(baseMonday.year, baseMonday.month, baseMonday.day + w * 7 + d, r.startH),
-              end: DateTime(baseMonday.year, baseMonday.month, baseMonday.day + w * 7 + d, r.endH),
-            ),
-    ];
 
 List<TimeBlock> _seedDynamic(DateTime today) => [
       TimeBlock(
