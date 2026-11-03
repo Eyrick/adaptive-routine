@@ -54,3 +54,11 @@ class SlotSuggestion {
   final DateTime start;
   final DateTime end;
 }
+
+
+int _idSeq = 0;
+
+/// Id único para blocos criados em tempo de execução. O contador evita
+/// colisão quando dois blocos nascem no mesmo "tick" do relógio (no Windows
+/// o relógio tem pouca resolução).
+String newBlockId() => 'dy-${DateTime.now().microsecondsSinceEpoch}-${_idSeq++}';

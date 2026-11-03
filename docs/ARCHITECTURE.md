@@ -210,3 +210,11 @@ sequenceDiagram
 - `FixedRule.skipDates` guarda datas (`yyyy-MM-dd`) em que a aula não acontece. A regra segue valendo nas outras semanas; só aquela ocorrência deixa de ser gerada.
 - O usuário informa pelo chat ("aula de Lóg. Prog. de quinta foi cancelada"); o app cancela apenas a ocorrência e avisa como desfazer ("restaurar Lóg. Prog. quinta"). A regra em si só muda na tela Rotina fixa.
 - Compatível com arquivos antigos: `routine.json` sem o campo `skip` carrega normalmente.
+
+## 14. Remarcar e desfazer
+
+- **Remarcar** ("remarque academia de sexta para 15h", "passa o Estudar ML para amanhã 10h", "adiar reunião 30 min"): o parser separa *origem* (qual evento) de *destino* (novo dia/hora) pelo último "para/pra" que tenha dia ou hora depois.
+- A remarcação **reusa a negociação de conflito**: `request(incoming, replaceId: ...)`. O bloco antigo só some quando o novo horário é confirmado; cancelar a conversa deixa tudo como estava.
+- **Evento dinâmico:** muda de horário mantendo o mesmo id. **Aula fixa de um dia:** a data vira `skipDates` da regra e nasce uma atividade dinâmica com o mesmo nome e duração; a regra não muda.
+- **Desfazer** ("desfazer"): pilha em memória (até 30) de `(blocks, rules)` alimentada automaticamente por `listenSelf` a cada mudança. Não é persistida: fechar o app limpa o histórico.
+- Verbos ambíguos ("passar", "mudar", "trocar") só viram remarcação quando acompanhados de "para/pra"; "passar na farmácia hoje 17h" continua sendo criar evento.
