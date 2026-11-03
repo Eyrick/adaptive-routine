@@ -196,3 +196,25 @@ sequenceDiagram
 - O acesso passa por `BlockRepository` (`lib/data/block_repository.dart`). A troca por **Drift/SQLite** é prevista quando houver recorrência real (M4) e sync, sem mudar controller nem UI.
 - A **base fixa** ainda é de demonstração: gerada por regras semanais em código (4 semanas atrás, 26 à frente). O cadastro real e a persistência dela entram no M4.
 - Arquivo ilegível é renomeado para `schedule.json.corrupt` em vez de sobrescrito.
+
+## 12. Decisão registrada no M4 (rotina fixa real)
+
+- A base fixa deixa de ser demonstração: o usuário cadastra **regras semanais** (`FixedRule`: nome, dias, início, fim) na tela `Rotina fixa`. É a única forma de editar a Camada 1; a IA nunca altera esses blocos.
+- As regras ficam em `routine.json` (mesmo padrão do `schedule.json`: escrita atômica, backup `.corrupt`), atrás de `RuleRepository`.
+- Os blocos fixos são **expandidos em memória** (4 semanas atrás, 26 à frente) a partir das regras; só as regras são persistidas.
+- A grade do calendário cresce além de 08–22h quando há blocos fora dessa faixa. As sugestões de janela da IA continuam usando 08–22h como horário ativo.
+- Ao salvar ou remover uma regra, o app avisa no chat se atividades dinâmicas futuras passaram a colidir com a rotina fixa. O reencaixe automático fica para a edição direta/comando "mover".
+
+## 13. Aula cancelada (exceção pontual)
+
+- `FixedRule.skipDates` guarda datas (`yyyy-MM-dd`) em que a aula não acontece. A regra segue valendo nas outras semanas; só aquela ocorrência deixa de ser gerada.
+- O usuário informa pelo chat ("aula de Lóg. Prog. de quinta foi cancelada"); o app cancela apenas a ocorrência e avisa como desfazer ("restaurar Lóg. Prog. quinta"). A regra em si só muda na tela Rotina fixa.
+- Compatível com arquivos antigos: `routine.json` sem o campo `skip` carrega normalmente.
+
+## 14. Remarcar e desfazer
+
+- **Remarcar** ("remarque academia de sexta para 15h", "passa o Estudar ML para amanhã 10h", "adiar reunião 30 min"): o parser separa *origem* (qual evento) de *destino* (novo dia/hora) pelo último "para/pra" que tenha dia ou hora depois.
+- A remarcação **reusa a negociação de conflito**: `request(incoming, replaceId: ...)`. O bloco antigo só some quando o novo horário é confirmado; cancelar a conversa deixa tudo como estava.
+- **Evento dinâmico:** muda de horário mantendo o mesmo id. **Aula fixa de um dia:** a data vira `skipDates` da regra e nasce uma atividade dinâmica com o mesmo nome e duração; a regra não muda.
+- **Desfazer** ("desfazer"): pilha em memória (até 30) de `(blocks, rules)` alimentada automaticamente por `listenSelf` a cada mudança. Não é persistida: fechar o app limpa o histórico.
+- Verbos ambíguos ("passar", "mudar", "trocar") só viram remarcação quando acompanhados de "para/pra"; "passar na farmácia hoje 17h" continua sendo criar evento.

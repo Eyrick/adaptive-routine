@@ -1,12 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models.dart';
 import '../../domain/scheduling.dart';
+import '../routine/routine_screen.dart';
 import 'calendar_controller.dart';
 
 const double _hourH = 56;
-const int _startH = 8, _endH = 22;
 const double _gutter = 44;
 
 class DualCalendarView extends ConsumerStatefulWidget {
@@ -25,26 +27,59 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
       for (var i = 0; i < 7; i++)
         DateTime(s.weekStart.year, s.weekStart.month, s.weekStart.day + i)
     ];
+    final weekEnd = DateTime(s.weekStart.year, s.weekStart.month, s.weekStart.day + 7);
     final cs = Theme.of(context).colorScheme;
+
+    final weekBlocks = s.blocks
+        .where((b) => !b.start.isBefore(days.first) && b.start.isBefore(weekEnd))
+        .toList();
+
+    // A grade cresce para caber aulas cedo/tarde (ex.: 7h30 ou até 22h30).
+    var startH = 8, endH = 22;
+    final ghost = s.pending?.incoming;
+    final inRange = [
+      ...weekBlocks,
+      if (ghost != null && !ghost.start.isBefore(days.first) && ghost.start.isBefore(weekEnd)) ghost,
+    ];
+    for (final b in inRange) {
+      startH = math.min(startH, b.start.hour);
+      final eh = sameDay(b.start, b.end) ? (b.end.minute > 0 ? b.end.hour + 1 : b.end.hour) : 24;
+      endH = math.max(endH, eh);
+    }
+
+    final routineButton = TextButton.icon(
+      icon: const Icon(Icons.lock_outline, size: 18),
+      label: const Text('Rotina fixa'),
+      onPressed: () => Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const RoutineScreen())),
+    );
 
     return Column(children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
         child: Row(children: [
-          FilterChip(
-            avatar: const Icon(Icons.lock_outline, size: 16),
-            label: const Text('Base fixa'),
-            selected: showFixed,
-            onSelected: (v) => setState(() => showFixed = v),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
+                FilterChip(
+                  avatar: const Icon(Icons.lock_outline, size: 16),
+                  label: const Text('Base fixa'),
+                  selected: showFixed,
+                  onSelected: (v) => setState(() => showFixed = v),
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  avatar: const Icon(Icons.bolt, size: 16),
+                  label: const Text('Dinâmico'),
+                  selected: showDynamic,
+                  onSelected: (v) => setState(() => showDynamic = v),
+                ),
+                const SizedBox(width: 8),
+                routineButton,
+              ]),
+            ),
           ),
-          const SizedBox(width: 8),
-          FilterChip(
-            avatar: const Icon(Icons.bolt, size: 16),
-            label: const Text('Dinâmico'),
-            selected: showDynamic,
-            onSelected: (v) => setState(() => showDynamic = v),
-          ),
-          const Spacer(),
           IconButton(
             icon: const Icon(Icons.chevron_left),
             onPressed: () => ref.read(calendarProvider.notifier).shiftWeek(-1),
@@ -80,14 +115,14 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(top: 10, bottom: 24),
           child: SizedBox(
-            height: (_endH - _startH) * _hourH,
+            height: (endH - startH) * _hourH,
             child: Row(children: [
               SizedBox(
                 width: _gutter,
                 child: Stack(clipBehavior: Clip.none, children: [
-                  for (var h = _startH; h < _endH; h++)
+                  for (var h = startH; h < endH; h++)
                     Positioned(
-                      top: (h - _startH) * _hourH - 7,
+                      top: (h - startH) * _hourH - 7,
                       right: 6,
                       child: Text('${h.toString().padLeft(2, '0')}:00',
                           style: Theme.of(context)
@@ -101,14 +136,13 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
                 Expanded(
                   child: RepaintBoundary(
                     child: _DayColumn(
-                      day: d,
-                      blocks: s.blocks.where((b) {
+                      startH: startH,
+                      endH: endH,
+                      blocks: weekBlocks.where((b) {
                         if (!sameDay(b.start, d)) return false;
                         return b.layer == Layer.fixed ? showFixed : showDynamic;
                       }).toList(),
-                      ghost: (s.pending != null && sameDay(s.pending!.incoming.start, d))
-                          ? s.pending!.incoming
-                          : null,
+                      ghost: (ghost != null && sameDay(ghost.start, d)) ? ghost : null,
                     ),
                   ),
                 ),
@@ -121,12 +155,24 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
 }
 
 class _DayColumn extends StatelessWidget {
-  const _DayColumn({required this.day, required this.blocks, this.ghost});
-  final DateTime day;
+  const _DayColumn({
+    required this.startH,
+    required this.endH,
+    required this.blocks,
+    this.ghost,
+  });
+  final int startH, endH;
   final List<TimeBlock> blocks;
   final TimeBlock? ghost;
 
-  double _top(DateTime t) => (t.hour + t.minute / 60 - _startH) * _hourH;
+  int _min(DateTime t) => t.hour * 60 + t.minute;
+  double _y(int minutes) => (minutes - startH * 60) / 60 * _hourH;
+
+  ({double top, double height}) _geo(TimeBlock b) {
+    final s = _min(b.start);
+    final e = sameDay(b.start, b.end) ? _min(b.end) : 24 * 60;
+    return (top: _y(s), height: math.max(14.0, _y(e) - _y(s) - 2));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +181,7 @@ class _DayColumn extends StatelessWidget {
       decoration: BoxDecoration(
           border: Border(left: BorderSide(color: cs.outlineVariant.withOpacity(.5)))),
       child: Stack(children: [
-        for (var h = 0; h < _endH - _startH; h++)
+        for (var h = 0; h < endH - startH; h++)
           Positioned(
               top: h * _hourH,
               left: 0,
@@ -146,8 +192,8 @@ class _DayColumn extends StatelessWidget {
             key: ValueKey(b.id),
             duration: const Duration(milliseconds: 350),
             curve: Curves.easeOutCubic,
-            top: _top(b.start),
-            height: b.duration.inMinutes / 60 * _hourH - 2,
+            top: _geo(b).top,
+            height: _geo(b).height,
             left: 2,
             right: 2,
             child: TweenAnimationBuilder<double>(
@@ -159,8 +205,8 @@ class _DayColumn extends StatelessWidget {
           ),
         if (ghost != null)
           Positioned(
-            top: _top(ghost!.start),
-            height: ghost!.duration.inMinutes / 60 * _hourH - 2,
+            top: _geo(ghost!).top,
+            height: _geo(ghost!).height,
             left: 2,
             right: 2,
             child: Container(
