@@ -61,15 +61,16 @@ Os testes em [`test/intent_test.dart`](test/intent_test.dart) e [`test/controlle
 
 | ✅ Implementado | 🔜 Planejado |
 |---|---|
-| Calendário duplo com atualização em tempo real | Layout de celular (visão de 3 dias) |
-| Chat de comandos com negociação de conflito | Notificações e lembretes |
-| Cadastro da rotina fixa e cancelamento de aula de um dia | Entrada por voz |
-| Remarcar, remover e desfazer | Repetição pelo chat ("de segunda a sexta") |
-| Salvamento local (JSON, escrita atômica) | Reencaixe automático ao cadastrar uma aula nova |
-| Testes do motor, do parser, da persistência e de conversas | LLM opcional para frases livres |
+| Calendário duplo com atualização em tempo real | Notificações e lembretes |
+| Chat de comandos com negociação de conflito | Entrada por voz |
+| Cadastro da rotina fixa e cancelamento de aula de um dia | Repetição pelo chat ("de segunda a sexta") |
+| Remarcar, remover e desfazer | Reencaixe automático ao cadastrar uma aula nova |
+| Salvamento local (JSON, escrita atômica) | LLM opcional para frases livres |
+| Layout de celular: 3 dias, chat compacto embaixo, deslizar para navegar | |
+| Testes do motor, do parser, da persistência, de conversas e de layout | |
 
 **Limitações conhecidas**
-- Testado apenas no **Windows**. As pastas de Android, iOS, macOS e Linux existem, mas não foram testadas, e o layout ainda é de tela grande.
+- Testado apenas no **Windows**. O layout de celular existe e tem testes de widget, mas ainda não foi validado visualmente em aparelho; as pastas de Android, iOS, macOS e Linux existem, mas o app ainda não foi rodado nelas.
 - Sem notificações e sem sincronização entre aparelhos.
 - A rotina fixa é semanal; exceções são apenas cancelar ou remarcar um dia.
 

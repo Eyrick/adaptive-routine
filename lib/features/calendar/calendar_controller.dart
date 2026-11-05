@@ -47,12 +47,14 @@ class CalendarState {
   const CalendarState({
     required this.blocks,
     required this.weekStart,
+    required this.focusDay,
     this.pending,
     this.messages = const [],
     this.rules = const [],
   });
   final List<TimeBlock> blocks;
-  final DateTime weekStart;
+  final DateTime weekStart; // segunda-feira da semana que contém [focusDay]
+  final DateTime focusDay; // 1º dia visível no celular (3 dias); no desktop, qualquer dia da semana
   final PendingConflict? pending;
   final List<ChatMessage> messages;
   final List<FixedRule> rules; // rotina fixa cadastrada pelo usuário
@@ -62,12 +64,14 @@ class CalendarState {
     List<ChatMessage>? messages,
     PendingConflict? pending,
     DateTime? weekStart,
+    DateTime? focusDay,
     List<FixedRule>? rules,
     bool clearPending = false,
   }) =>
       CalendarState(
         blocks: blocks ?? this.blocks,
         weekStart: weekStart ?? this.weekStart,
+        focusDay: focusDay ?? this.focusDay,
         rules: rules ?? this.rules,
         messages: messages ?? this.messages,
         pending: clearPending ? null : (pending ?? this.pending),
@@ -92,7 +96,7 @@ class CalendarController extends Notifier<CalendarState> {
     final rules = ref.read(initialRulesProvider) ?? const <FixedRule>[];
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final monday = today.subtract(Duration(days: today.weekday - 1));
+    final monday = DateTime(today.year, today.month, today.day - (today.weekday - 1));
     _baseMonday = monday;
 
     final dynamicBlocks = saved ?? _seedDynamic(today);
@@ -119,6 +123,7 @@ class CalendarController extends Notifier<CalendarState> {
 
     return CalendarState(
       weekStart: monday,
+      focusDay: today,
       rules: rules,
       blocks: [...expandRules(rules, monday, _backWeeks, _aheadWeeks), ...dynamicBlocks],
       messages: [
@@ -137,17 +142,25 @@ class CalendarController extends Notifier<CalendarState> {
     return DateTime(n.year, n.month, n.day);
   }
 
-  void shiftWeek(int delta) {
-    final w = state.weekStart;
-    final next = DateTime(w.year, w.month, w.day + 7 * delta);
-    final weeks = (next.difference(_baseMonday).inDays / 7).round();
+  void shiftWeek(int delta) => shiftDays(7 * delta);
+
+  /// Move a janela visível: de 7 em 7 dias no desktop, de 3 em 3 no celular.
+  /// A semana de referência (usada para "quinta", "sexta"...) acompanha.
+  void shiftDays(int delta) {
+    final f = state.focusDay;
+    final next = DateTime(f.year, f.month, f.day + delta);
+    final monday = DateTime(next.year, next.month, next.day - (next.weekday - 1));
+    final weeks = (monday.difference(_baseMonday).inDays / 7).round();
     if (weeks < -_backWeeks || weeks > _aheadWeeks) return;
-    state = state.copyWith(weekStart: next);
+    state = state.copyWith(focusDay: next, weekStart: monday);
   }
 
   void goToToday() {
     final t = _today;
-    state = state.copyWith(weekStart: t.subtract(Duration(days: t.weekday - 1)));
+    state = state.copyWith(
+      focusDay: t,
+      weekStart: DateTime(t.year, t.month, t.day - (t.weekday - 1)),
+    );
   }
 
   // ---- Rotina fixa (cadastro manual; o chat nunca altera estes blocos) ---------

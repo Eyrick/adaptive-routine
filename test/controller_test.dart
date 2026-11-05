@@ -119,4 +119,21 @@ void main() {
     await tick();
     expect(c.read(calendarProvider).rules, isEmpty);
   });
+
+  test('janela de dias: anda de 3 em 3, semana acompanha e há limite', () async {
+    final c = make();
+    final ctl = c.read(calendarProvider.notifier);
+    final s0 = c.read(calendarProvider);
+
+    ctl.shiftDays(3);
+    final s1 = c.read(calendarProvider);
+    expect(s1.focusDay, DateTime(s0.focusDay.year, s0.focusDay.month, s0.focusDay.day + 3));
+    expect(s1.weekStart.weekday, DateTime.monday);
+
+    ctl.shiftDays(7 * 200); // além do limite: ignorado
+    expect(c.read(calendarProvider).focusDay, s1.focusDay);
+
+    ctl.goToToday();
+    expect(c.read(calendarProvider).focusDay, s0.focusDay);
+  });
 }

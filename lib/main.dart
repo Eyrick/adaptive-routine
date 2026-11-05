@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -80,18 +78,14 @@ class HomePage extends StatelessWidget {
           ]),
         );
       }
-      return Scaffold(
-        appBar: AppBar(title: const Text('Minha semana')),
-        endDrawer: Drawer(
-          width: math.min(c.maxWidth, 420),
-          child: const ChatPanel(),
-        ),
-        body: const DualCalendarView(),
-        floatingActionButton: Builder(
-          builder: (ctx) => FloatingActionButton(
-            onPressed: () => Scaffold.of(ctx).openEndDrawer(),
-            child: const Icon(Icons.chat_bubble_outline),
-          ),
+      // Celular (ou janela estreita): calendário de 3 dias + chat compacto embaixo.
+      return const Scaffold(
+        body: SafeArea(
+          bottom: false,
+          child: Column(children: [
+            Expanded(child: DualCalendarView()),
+            ChatDock(),
+          ]),
         ),
       );
     });

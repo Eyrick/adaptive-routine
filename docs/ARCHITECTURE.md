@@ -189,7 +189,7 @@ sequenceDiagram
 | M3 | Notificações locais + voz | 🔜 planejado |
 | M4 | Cadastro da rotina fixa (regras semanais, cancelar aula de um dia). RRULE completo não incluído | ✅ feito |
 | M5 | Polimento e empacotamento (Windows/Android; iOS na Fase 2) | 🔜 planejado |
-| — | Layout de celular, remarcar, desfazer | remarcar e desfazer ✅; layout de celular 🔜 |
+| — | Layout de celular, remarcar, desfazer | ✅ feito (layout de celular ainda sem validação visual em aparelho) |
 
 ## 10. Documentos a produzir na sequência
 `DESIGN_SYSTEM.md` (tokens, estados Fixo vs Dinâmico, responsivo) e `UX.md` (diagrama do fluxo de conflito).
@@ -222,3 +222,10 @@ sequenceDiagram
 - **Evento dinâmico:** muda de horário mantendo o mesmo id. **Aula fixa de um dia:** a data vira `skipDates` da regra e nasce uma atividade dinâmica com o mesmo nome e duração; a regra não muda.
 - **Desfazer** ("desfazer"): pilha em memória (até 30) de `(blocks, rules)` alimentada automaticamente por `listenSelf` a cada mudança. Não é persistida: fechar o app limpa o histórico.
 - Verbos ambíguos ("passar", "mudar", "trocar") só viram remarcação quando acompanhados de "para/pra"; "passar na farmácia hoje 17h" continua sendo criar evento.
+
+## 15. Layout responsivo (celular)
+
+- Larguras abaixo de 900 px usam o layout de celular: calendário em cima e `ChatDock` embaixo (última resposta do app, botões de resposta rápida e campo de texto). Tocar na resposta abre o histórico completo numa folha.
+- Dentro do calendário, abaixo de 640 px são mostrados **3 dias** a partir de `focusDay`; setas e deslizar para o lado andam de 3 em 3. Acima disso, a semana de 7 dias de sempre.
+- `weekStart` (segunda-feira da semana que contém `focusDay`) continua sendo a referência para "quinta", "sexta" etc. nos comandos.
+- Coberto por testes de widget em tamanhos de celular e de desktop (`test/layout_test.dart`). **Validação visual em janela estreita e em aparelho real ainda pendente.**

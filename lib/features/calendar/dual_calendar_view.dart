@@ -11,6 +11,9 @@ import 'calendar_controller.dart';
 const double _hourH = 56;
 const double _gutter = 44;
 
+/// Abaixo desta largura (celular) o calendário mostra 3 dias em vez de 7.
+const double _compactBelow = 640;
+
 class DualCalendarView extends ConsumerStatefulWidget {
   const DualCalendarView({super.key});
   @override
@@ -20,137 +23,157 @@ class DualCalendarView extends ConsumerStatefulWidget {
 class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
   bool showFixed = true, showDynamic = true;
 
+  void _openRoutine() => Navigator.of(context)
+      .push(MaterialPageRoute(builder: (_) => const RoutineScreen()));
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(calendarProvider);
-    final days = [
-      for (var i = 0; i < 7; i++)
-        DateTime(s.weekStart.year, s.weekStart.month, s.weekStart.day + i)
-    ];
-    final weekEnd = DateTime(s.weekStart.year, s.weekStart.month, s.weekStart.day + 7);
+    final ctl = ref.read(calendarProvider.notifier);
     final cs = Theme.of(context).colorScheme;
 
-    final weekBlocks = s.blocks
-        .where((b) => !b.start.isBefore(days.first) && b.start.isBefore(weekEnd))
-        .toList();
+    return LayoutBuilder(builder: (context, c) {
+      final compact = c.maxWidth < _compactBelow;
+      final step = compact ? 3 : 7;
+      final first = compact ? s.focusDay : s.weekStart;
+      final days = [
+        for (var i = 0; i < (compact ? 3 : 7); i++)
+          DateTime(first.year, first.month, first.day + i)
+      ];
+      final rangeEnd = DateTime(days.last.year, days.last.month, days.last.day + 1);
 
-    // A grade cresce para caber aulas cedo/tarde (ex.: 7h30 ou até 22h30).
-    var startH = 8, endH = 22;
-    final ghost = s.pending?.incoming;
-    final inRange = [
-      ...weekBlocks,
-      if (ghost != null && !ghost.start.isBefore(days.first) && ghost.start.isBefore(weekEnd)) ghost,
-    ];
-    for (final b in inRange) {
-      startH = math.min(startH, b.start.hour);
-      final eh = sameDay(b.start, b.end) ? (b.end.minute > 0 ? b.end.hour + 1 : b.end.hour) : 24;
-      endH = math.max(endH, eh);
-    }
+      bool inRange(DateTime t) => !t.isBefore(days.first) && t.isBefore(rangeEnd);
+      final visible = s.blocks.where((b) => inRange(b.start)).toList();
 
-    final routineButton = TextButton.icon(
-      icon: const Icon(Icons.lock_outline, size: 18),
-      label: const Text('Rotina fixa'),
-      onPressed: () => Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => const RoutineScreen())),
-    );
+      // A grade cresce para caber aulas cedo/tarde (ex.: 7h30 ou até 22h30).
+      var startH = 8, endH = 22;
+      final ghost = s.pending?.incoming;
+      for (final b in [...visible, if (ghost != null && inRange(ghost.start)) ghost]) {
+        startH = math.min(startH, b.start.hour);
+        final eh = sameDay(b.start, b.end) ? (b.end.minute > 0 ? b.end.hour + 1 : b.end.hour) : 24;
+        endH = math.max(endH, eh);
+      }
 
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
-        child: Row(children: [
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(children: [
-                FilterChip(
-                  avatar: const Icon(Icons.lock_outline, size: 16),
-                  label: const Text('Base fixa'),
-                  selected: showFixed,
-                  onSelected: (v) => setState(() => showFixed = v),
-                ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  avatar: const Icon(Icons.bolt, size: 16),
-                  label: const Text('Dinâmico'),
-                  selected: showDynamic,
-                  onSelected: (v) => setState(() => showDynamic = v),
-                ),
-                const SizedBox(width: 8),
-                routineButton,
-              ]),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () => ref.read(calendarProvider.notifier).shiftWeek(-1),
-          ),
-          TextButton(
-            onPressed: () => ref.read(calendarProvider.notifier).goToToday(),
-            child: const Text('Hoje'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
-            onPressed: () => ref.read(calendarProvider.notifier).shiftWeek(1),
-          ),
-        ]),
-      ),
-      Row(children: [
-        const SizedBox(width: _gutter),
-        for (final d in days)
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                '${dayLabel(d)} ${d.day}',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: sameDay(d, DateTime.now()) ? cs.primary : cs.onSurfaceVariant,
-                      fontWeight: sameDay(d, DateTime.now()) ? FontWeight.w700 : null,
-                    ),
+      return Column(children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(compact ? 8 : 16, 8, 4, 4),
+          child: Row(children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(children: [
+                  FilterChip(
+                    avatar: const Icon(Icons.lock_outline, size: 16),
+                    label: const Text('Base fixa'),
+                    selected: showFixed,
+                    onSelected: (v) => setState(() => showFixed = v),
+                  ),
+                  const SizedBox(width: 8),
+                  FilterChip(
+                    avatar: const Icon(Icons.bolt, size: 16),
+                    label: const Text('Dinâmico'),
+                    selected: showDynamic,
+                    onSelected: (v) => setState(() => showDynamic = v),
+                  ),
+                  const SizedBox(width: 4),
+                  compact
+                      ? IconButton(
+                          tooltip: 'Rotina fixa',
+                          icon: const Icon(Icons.edit_calendar_outlined),
+                          onPressed: _openRoutine,
+                        )
+                      : TextButton.icon(
+                          icon: const Icon(Icons.edit_calendar_outlined, size: 18),
+                          label: const Text('Rotina fixa'),
+                          onPressed: _openRoutine,
+                        ),
+                ]),
               ),
             ),
-          ),
-      ]),
-      Expanded(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(top: 10, bottom: 24),
-          child: SizedBox(
-            height: (endH - startH) * _hourH,
-            child: Row(children: [
-              SizedBox(
-                width: _gutter,
-                child: Stack(clipBehavior: Clip.none, children: [
-                  for (var h = startH; h < endH; h++)
-                    Positioned(
-                      top: (h - startH) * _hourH - 7,
-                      right: 6,
-                      child: Text('${h.toString().padLeft(2, '0')}:00',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(color: cs.onSurfaceVariant)),
+            IconButton(
+              tooltip: compact ? '3 dias antes' : 'Semana anterior',
+              icon: const Icon(Icons.chevron_left),
+              onPressed: () => ctl.shiftDays(-step),
+            ),
+            TextButton(onPressed: ctl.goToToday, child: const Text('Hoje')),
+            IconButton(
+              tooltip: compact ? 'Próximos 3 dias' : 'Próxima semana',
+              icon: const Icon(Icons.chevron_right),
+              onPressed: () => ctl.shiftDays(step),
+            ),
+          ]),
+        ),
+        Row(children: [
+          const SizedBox(width: _gutter),
+          for (var i = 0; i < days.length; i++)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  '${dayLabel(days[i])} ${days[i].day}'
+                  '${(compact && i == 0) || days[i].day == 1 ? '/${days[i].month}' : ''}',
+                  key: ValueKey('day-header-$i'),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: sameDay(days[i], DateTime.now()) ? cs.primary : cs.onSurfaceVariant,
+                        fontWeight: sameDay(days[i], DateTime.now()) ? FontWeight.w700 : null,
+                      ),
+                ),
+              ),
+            ),
+        ]),
+        Expanded(
+          // No celular, deslizar para o lado avança ou volta 3 dias.
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragEnd: compact
+                ? (d) {
+                    final v = d.primaryVelocity ?? 0;
+                    if (v < -250) ctl.shiftDays(step);
+                    if (v > 250) ctl.shiftDays(-step);
+                  }
+                : null,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(top: 10, bottom: 24),
+              child: SizedBox(
+                height: (endH - startH) * _hourH,
+                child: Row(children: [
+                  SizedBox(
+                    width: _gutter,
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      for (var h = startH; h < endH; h++)
+                        Positioned(
+                          top: (h - startH) * _hourH - 7,
+                          right: 6,
+                          child: Text('${h.toString().padLeft(2, '0')}:00',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(color: cs.onSurfaceVariant)),
+                        ),
+                    ]),
+                  ),
+                  for (final d in days)
+                    Expanded(
+                      child: RepaintBoundary(
+                        child: _DayColumn(
+                          startH: startH,
+                          endH: endH,
+                          blocks: visible.where((b) {
+                            if (!sameDay(b.start, d)) return false;
+                            return b.layer == Layer.fixed ? showFixed : showDynamic;
+                          }).toList(),
+                          ghost: (ghost != null && sameDay(ghost.start, d)) ? ghost : null,
+                        ),
+                      ),
                     ),
                 ]),
               ),
-              for (final d in days)
-                Expanded(
-                  child: RepaintBoundary(
-                    child: _DayColumn(
-                      startH: startH,
-                      endH: endH,
-                      blocks: weekBlocks.where((b) {
-                        if (!sameDay(b.start, d)) return false;
-                        return b.layer == Layer.fixed ? showFixed : showDynamic;
-                      }).toList(),
-                      ghost: (ghost != null && sameDay(ghost.start, d)) ? ghost : null,
-                    ),
-                  ),
-                ),
-            ]),
+            ),
           ),
         ),
-      ),
-    ]);
+      ]);
+    });
   }
 }
 
