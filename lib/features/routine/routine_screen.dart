@@ -6,7 +6,7 @@ import '../../domain/scheduling.dart';
 import '../calendar/calendar_controller.dart';
 
 /// Tela de cadastro da rotina fixa (Camada 1). Só o usuário edita aqui:
-/// a IA nunca altera estes compromissos.
+/// o chat nunca altera estes compromissos.
 class RoutineScreen extends ConsumerWidget {
   const RoutineScreen({super.key});
 
@@ -51,8 +51,9 @@ class RoutineScreen extends ConsumerWidget {
                 padding: const EdgeInsets.all(32),
                 child: Text(
                   'Cadastre o que se repete toda semana: aulas, trabalho, estágio.\n\n'
-                  'Esses compromissos ficam protegidos. A IA encaixa as tarefas '
-                  'extras ao redor deles e nunca os move.',
+                  'Esses compromissos ficam protegidos. O app encaixa as tarefas '
+                  'extras ao redor deles e nunca os move.\n\n'
+                  'Só quer experimentar? No chat, digite "carregar exemplo".',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: cs.onSurfaceVariant, height: 1.4),
                 ),

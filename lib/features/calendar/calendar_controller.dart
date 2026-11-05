@@ -5,7 +5,7 @@ import '../../data/rule_repository.dart';
 import '../../domain/fixed_rule.dart';
 import '../../domain/models.dart';
 import '../../domain/scheduling.dart';
-import '../chat/mock_intent.dart';
+import '../chat/command_parser.dart';
 
 class ChatMessage {
   const ChatMessage(this.text, {this.fromUser = false});
@@ -127,7 +127,7 @@ class CalendarController extends Notifier<CalendarState> {
             : 'Bem-vindo de volta! Sua agenda foi carregada.'),
         if (rules.isEmpty)
           const ChatMessage(
-              'Você ainda não cadastrou sua rotina fixa. Toque em "Rotina fixa" no topo do calendário para adicionar suas aulas e compromissos.'),
+              'Você ainda não cadastrou sua rotina fixa. Toque em "Rotina fixa" no topo do calendário para adicionar suas aulas, ou digite "carregar exemplo" para ver o app funcionando.'),
       ],
     );
   }
@@ -150,7 +150,7 @@ class CalendarController extends Notifier<CalendarState> {
     state = state.copyWith(weekStart: t.subtract(Duration(days: t.weekday - 1)));
   }
 
-  // ---- Rotina fixa (cadastro manual; a IA nunca altera estes blocos) ---------
+  // ---- Rotina fixa (cadastro manual; o chat nunca altera estes blocos) ---------
 
   void saveRule(FixedRule rule) {
     final isNew = !state.rules.any((r) => r.id == rule.id);
@@ -216,6 +216,10 @@ class CalendarController extends Notifier<CalendarState> {
           : 'Removi $n atividade(s) do calendário dinâmico. A base fixa não foi alterada.');
       return;
     }
+    if (isDemoCommand(t)) {
+      _loadDemo();
+      return;
+    }
     if (isUndoCommand(t)) {
       _undo();
       return;
@@ -250,6 +254,27 @@ class CalendarController extends Notifier<CalendarState> {
       return;
     }
     request(incoming);
+  }
+
+  /// Dados de exemplo para quem acabou de abrir o app (só em agenda sem rotina).
+  void _loadDemo() {
+    if (state.rules.isNotEmpty) {
+      _say('Você já tem uma rotina fixa cadastrada. O exemplo só carrega numa agenda sem rotina, para não misturar com os seus dados.');
+      return;
+    }
+    const rules = [
+      FixedRule(id: 'demo-calc', title: 'Cálculo II', weekdays: [1, 3, 5], startMin: 8 * 60, endMin: 10 * 60),
+      FixedRule(id: 'demo-lab', title: 'Laboratório', weekdays: [2, 4], startMin: 14 * 60, endMin: 16 * 60),
+    ];
+    final dyn = state.blocks.where((b) => b.layer == Layer.dynamic).toList();
+    final fixed = expandRules(rules, _baseMonday, _backWeeks, _aheadWeeks);
+    state = state.copyWith(
+      rules: rules,
+      blocks: [...fixed, ...dyn, if (!dyn.any((b) => b.id == 'dy-fis')) ..._seedDynamic(_today)],
+      clearPending: true,
+    );
+    _say('Carreguei um exemplo: Cálculo II e Laboratório na rotina fixa e um "Estudo de Física" hoje às 17h. '
+        'Tente: "Tenho uma reunião de última hora hoje às 17h".');
   }
 
   List<TimeBlock> _match(RemoveIntent r) => state.blocks.where((b) {

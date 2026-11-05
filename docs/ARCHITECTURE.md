@@ -1,4 +1,6 @@
-# ARCHITECTURE.md — Adaptive Routine AI
+# ARCHITECTURE.md — Adaptive Routine
+
+> **Estado atual (honesto):** a interpretação de comandos é feita por um **parser baseado em regras** (`lib/features/chat/command_parser.dart`). Não há LLM nem chamada de rede no app. Os trechos sobre LLM, `IntentService` e tool calling descrevem o **design-alvo planejado** e estão marcados como tal.
 
 > Status: Fase 1 (Desktop + Android) · Versão do doc: 0.1
 
@@ -24,10 +26,10 @@ Motivo: o requisito "90%+ de código compartilhado com baixo consumo" é atendid
 | Banco local | **Drift (SQLite)** | Tipado, migrations, streams reativos. (Isar foi descartado: manutenção incerta) |
 | Notificações | `flutter_local_notifications` + `timezone` | Agendamento local, ações interativas |
 | Voz | `speech_to_text` (STT do SO) | On-device, sem custo |
-| IA | Provedor LLM via API (Claude) com *tool calling* | Atrás de interface `IntentService` (trocável/offline) |
+| Interpretação de comandos | **Hoje:** parser por regras (`command_parser.dart`). **Planejado:** LLM via API com *tool calling* | O LLM entraria atrás de uma interface `IntentService` (ainda não criada) |
 | Sync (pós-MVP) | Backend leve (ex.: Supabase/Postgres) com resolução por `updated_at` + `deleted_at` | Local-first: nuvem é réplica |
 
-## 2. Princípio central: "LLM propõe, motor decide"
+## 2. Princípio central (design-alvo): "o interpretador propõe, o motor decide"
 
 ```
 LLM  →  entende linguagem natural, extrai INTENÇÃO (JSON)
@@ -106,13 +108,13 @@ Ocorrências de blocos recorrentes são **expandidas em memória** para a janela
 2. `end > start`.
 3. Remanejamento grava `moved_from`.
 
-## 5. Fluxo Chat → IA → Estado
+## 5. Fluxo Chat → Interpretador → Estado
 
 ```mermaid
 sequenceDiagram
   participant U as Usuário
   participant C as ChatPanel
-  participant I as IntentService (LLM)
+  participant I as Interpretador (hoje: regras · planejado: LLM)
   participant M as SchedulingEngine (domain)
   participant S as CalendarController (Riverpod)
   participant D as Drift DB
@@ -150,7 +152,7 @@ sequenceDiagram
   "confidence": 0.93
 }
 ```
-`confidence < 0.7` → a IA pergunta antes de agir. Datas relativas ("amanhã") são resolvidas pelo LLM com a data atual enviada no prompt **e revalidadas** pelo app; o preview exibe a data resolvida em texto.
+`confidence < 0.7` → o assistente pergunta antes de agir (planejado). Datas relativas ("amanhã") são resolvidas pelo LLM com a data atual enviada no prompt **e revalidadas** pelo app; o preview exibe a data resolvida em texto.
 
 ### Algoritmo de janelas livres (`suggestSlots`)
 1. Para cada dia da semana, gerar intervalos livres dentro do horário ativo (padrão 08–22).
@@ -177,15 +179,17 @@ sequenceDiagram
 - Ao LLM envia-se apenas o texto do usuário + data/fuso; para sugerir janelas, o cálculo é local (nenhum dado da agenda sai).
 - Chave de API nunca no cliente: chamadas passam por um proxy leve (Edge Function) com rate limit.
 
-## 9. Roadmap técnico (Fase 1)
-| Marco | Entrega |
-|---|---|
-| M0 | Boilerplate + Calendário Duplo com estado dinâmico (**este commit**) |
-| M1 | Persistência Drift + testes do motor de conflitos |
-| M2 | IntentService real (LLM, tool calling) + preview de confirmação |
-| M3 | Notificações locais + voz |
-| M4 | Recorrência (RRULE) + onboarding da Base Fixa |
-| M5 | Polimento, empacotamento Win/macOS/Linux/APK |
+## 9. Roadmap técnico (Fase 1) — com status
+
+| Marco | Entrega | Status |
+|---|---|---|
+| M0 | Boilerplate + calendário duplo com estado dinâmico | ✅ feito |
+| M1 | Persistência local (arquivo JSON atrás de `BlockRepository`; Drift fica para quando houver sync) + testes do motor | ✅ feito |
+| M2 | Interpretador com LLM (tool calling) + preview de confirmação | 🔜 planejado |
+| M3 | Notificações locais + voz | 🔜 planejado |
+| M4 | Cadastro da rotina fixa (regras semanais, cancelar aula de um dia). RRULE completo não incluído | ✅ feito |
+| M5 | Polimento e empacotamento (Windows/Android; iOS na Fase 2) | 🔜 planejado |
+| — | Layout de celular, remarcar, desfazer | remarcar e desfazer ✅; layout de celular 🔜 |
 
 ## 10. Documentos a produzir na sequência
 `DESIGN_SYSTEM.md` (tokens, estados Fixo vs Dinâmico, responsivo) e `UX.md` (diagrama do fluxo de conflito).
@@ -202,7 +206,7 @@ sequenceDiagram
 - A base fixa deixa de ser demonstração: o usuário cadastra **regras semanais** (`FixedRule`: nome, dias, início, fim) na tela `Rotina fixa`. É a única forma de editar a Camada 1; a IA nunca altera esses blocos.
 - As regras ficam em `routine.json` (mesmo padrão do `schedule.json`: escrita atômica, backup `.corrupt`), atrás de `RuleRepository`.
 - Os blocos fixos são **expandidos em memória** (4 semanas atrás, 26 à frente) a partir das regras; só as regras são persistidas.
-- A grade do calendário cresce além de 08–22h quando há blocos fora dessa faixa. As sugestões de janela da IA continuam usando 08–22h como horário ativo.
+- A grade do calendário cresce além de 08–22h quando há blocos fora dessa faixa. As sugestões de janela continuam usando 08–22h como horário ativo.
 - Ao salvar ou remover uma regra, o app avisa no chat se atividades dinâmicas futuras passaram a colidir com a rotina fixa. O reencaixe automático fica para a edição direta/comando "mover".
 
 ## 13. Aula cancelada (exceção pontual)

@@ -1,4 +1,6 @@
-# PRODUCT.md — Adaptive Routine AI (Fluid Scheduler)
+# PRODUCT.md — Adaptive Routine (Fluid Scheduler)
+
+> **Estado atual (honesto):** o chat interpreta comandos com **regras e expressões regulares**, sem modelo de linguagem. A decisão de conflitos é feita por um motor determinístico local. Um LLM é uma evolução **planejada**, descrita como design-alvo neste documento. O que está implementado hoje está no `README.md`.
 
 > Status: Fase 1 (Desktop + Android) · Versão do doc: 0.1
 
@@ -10,7 +12,7 @@
 |---|---|
 | Dor real | Alta. Estudantes têm base rígida (aulas) + caos variável (provas, grupos, reuniões). Agendas atuais tratam tudo como bloco igual. |
 | Diferencial | O **Duplo Calendário** separa o que é *imutável* do que é *negociável*. Isso é o que torna o remanejamento seguro e automatizável. |
-| Risco principal | Confiança. Se a IA mover algo errado uma vez, o usuário abandona. Mitigação: **a IA propõe, o motor determinístico valida, o usuário confirma**. |
+| Risco principal | Confiança. Se o app mover algo errado uma vez, o usuário abandona. Mitigação: **o assistente propõe, o motor determinístico valida, o usuário confirma**. |
 | Risco técnico | LLM não deve calcular horários. Ele só extrai intenção; conflitos e janelas livres são calculados por código local (testável, offline, instantâneo). |
 | Ajuste | Posicionar como **"agenda que negocia com você"**, não "agenda com chatbot". O chat é a interface, o motor de conflitos é o produto. |
 
@@ -23,12 +25,12 @@
 | | **Camada 1 — Base (Fixo)** | **Camada 2 — Dinâmica (Extras)** |
 |---|---|---|
 | Conteúdo | Aulas, trabalho, compromissos recorrentes | Estudos, tarefas, reuniões de última hora |
-| Editável pela IA | **Nunca** (só o usuário edita) | **Sim**, com confirmação |
+| Alterável pelo chat | **Nunca** (só o usuário edita) | **Sim**, com confirmação |
 | Recorrência | Sim | Normalmente pontual |
 | Papel no conflito | Barreira intransponível | Candidato a remanejamento |
 | Visual | Sólido, discreto, ícone de cadeado | Cor de destaque, animado ao mover |
 
-**Regra de ouro:** bloco Fixo nunca é movido pela IA. Se o novo evento colide com um Fixo, a IA oferece janelas alternativas para o *novo* evento.
+**Regra de ouro:** bloco Fixo nunca é movido pelo assistente. Se o novo evento colide com um Fixo, o assistente oferece janelas alternativas para o *novo* evento.
 
 ## 3. Personas
 
@@ -49,7 +51,7 @@
 | Etapa | Ação | Emoção | Resposta do produto |
 |---|---|---|---|
 | 1. Onboarding | Importa/cria aulas e trabalho como **Base Fixa** (2 min) | Neutro | Grade semanal pronta, bloqueios com cadeado |
-| 2. Planejamento | "Preciso estudar Física 3x essa semana, 1h30 cada" | Organizada | IA aloca 3 blocos na camada Dinâmica |
+| 2. Planejamento | "Preciso estudar Física 3x essa semana, 1h30 cada" | Organizada | o app aloca 3 blocos na camada Dinâmica *(visão futura, ainda não implementado)* |
 | 3. Imprevisto | "Reunião de última hora hoje às 17h" | Estressada | Detecta choque com *Estudo de Física* e propõe 3 janelas |
 | 4. Decisão | Toca na janela "Amanhã 19:00" | Aliviada | Reunião entra às 17h, Física move, animação fluida |
 | 5. Notificação | 16:45 — lembrete da reunião | Confiante | Push com ações *Ok / Adiar* |
@@ -74,7 +76,7 @@
 - Cold start < 1,5 s no desktop e < 2 s no Android médio.
 - Retenção D7 ≥ 35% entre estudantes.
 
-## 7. Riscos e mitigações
+## 7. Riscos e mitigações (considerando o LLM planejado)
 | Risco | Mitigação |
 |---|---|
 | Alucinação do LLM com datas | LLM só retorna JSON de intenção; datas resolvidas por parser/código; UI sempre mostra preview antes de confirmar |

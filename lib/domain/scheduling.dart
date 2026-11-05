@@ -1,6 +1,7 @@
 import 'models.dart';
 
-/// Motor determinístico: nada aqui depende de LLM ou de Flutter UI.
+/// Motor determinístico de conflitos e janelas livres: sem modelo de linguagem,
+/// sem rede e sem dependência de Flutter UI.
 
 List<TimeBlock> findConflicts(List<TimeBlock> all, TimeBlock candidate) =>
     all.where((b) => b.id != candidate.id && b.overlaps(candidate)).toList();

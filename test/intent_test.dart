@@ -1,4 +1,4 @@
-import 'package:adaptive_routine/features/chat/mock_intent.dart';
+import 'package:adaptive_routine/features/chat/command_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

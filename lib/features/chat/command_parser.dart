@@ -1,6 +1,10 @@
 import '../../domain/models.dart';
 
-/// Substituto local do IntentService (LLM). Na M2 troca-se por tool calling.
+/// Interpretador de comandos do chat, baseado em REGRAS e expressões regulares.
+/// Não usa modelo de linguagem nem rede: roda local e é determinístico.
+/// Os testes em test/intent_test.dart documentam o que ele entende.
+/// (Um LLM poderia ser plugado depois atrás de uma interface; ver docs/ARCHITECTURE.md.)
+///
 /// Entende: "reunião hoje às 17h", "estudar das 8h às 9:30", "dentista quinta
 /// 14h por 2:30h", "adicione Estudar PAA amanhã 10h com duração de 45min".
 TimeBlock? parseIntent(String text, DateTime now) {
@@ -358,4 +362,9 @@ MoveIntent parseMove(String text, DateTime now, DateTime weekStart) {
     targetMinutes: tMin,
     shift: shift,
   );
+}
+
+bool isDemoCommand(String text) {
+  final t = normalizeText(text).trim();
+  return t == 'carregar exemplo' || t == 'carregar demo' || t == 'exemplo';
 }
