@@ -101,4 +101,22 @@ void main() {
     final ids = c.read(calendarProvider).blocks.map((b) => b.id).toList();
     expect(ids.toSet().length, ids.length);
   });
+
+  test('carregar exemplo só vale em agenda sem rotina e dá para desfazer', () async {
+    final c = make();
+    final ctl = c.read(calendarProvider.notifier);
+
+    ctl.submit('carregar exemplo');
+    await tick();
+    expect(c.read(calendarProvider).rules.length, 2);
+    expect(c.read(calendarProvider).blocks.where((b) => b.layer == Layer.fixed), isNotEmpty);
+
+    ctl.submit('carregar exemplo'); // já há rotina: recusa
+    await tick();
+    expect(c.read(calendarProvider).rules.length, 2);
+
+    ctl.submit('desfazer');
+    await tick();
+    expect(c.read(calendarProvider).rules, isEmpty);
+  });
 }

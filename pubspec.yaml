@@ -1,5 +1,5 @@
 name: adaptive_routine
-description: Adaptive Routine AI - Fluid Scheduler
+description: Adaptive Routine - agenda com calendário duplo (rotina fixa + tarefas extras) e chat de comandos.
 publish_to: none
 version: 0.1.0
 
