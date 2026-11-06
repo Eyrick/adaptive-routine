@@ -368,3 +368,42 @@ bool isDemoCommand(String text) {
   final t = normalizeText(text).trim();
   return t == 'carregar exemplo' || t == 'carregar demo' || t == 'exemplo';
 }
+
+// ------------------------------------------------------- vários eventos numa frase
+
+const _dayWords = {
+  'hoje', 'amanha', 'segunda', 'seg', 'terca', 'quarta', 'qua', 'quinta', 'qui',
+  'sexta', 'sex', 'sabado', 'sab', 'domingo', 'dom',
+};
+
+/// "reunião amanhã 9h e dentista amanhã 10h" -> duas frases.
+/// Só divide quando **cada** pedaço tem um horário: "Estudo e revisão 10h" e
+/// "jantar com Ana e Pedro 20h" continuam sendo um evento só. Um dia dito uma
+/// única vez ("reunião 9h e dentista 10h amanhã") vale para todos os pedaços.
+List<String> splitEvents(String text) {
+  final timeRe = RegExp(r'\d{1,2}\s*(?:h|:)');
+  final parts = text
+      .split(RegExp(r'\s*[;,]\s*|\s+e\s+'))
+      .map((p) => p.trim())
+      .where((p) => p.isNotEmpty)
+      .toList();
+  if (parts.length < 2 || !parts.every(timeRe.hasMatch)) return [text];
+
+  String? dayOf(String p) {
+    for (final w in p.split(RegExp(r'\s+'))) {
+      if (_dayWords.contains(normalizeText(w))) return w;
+    }
+    return null;
+  }
+
+  final found = parts.map(dayOf).toList();
+  final distinct = found.whereType<String>().map(normalizeText).toSet();
+  if (distinct.length == 1) {
+    final shared = found.whereType<String>().first;
+    return [
+      for (var i = 0; i < parts.length; i++)
+        found[i] == null ? '${parts[i]} $shared' : parts[i],
+    ];
+  }
+  return parts;
+}

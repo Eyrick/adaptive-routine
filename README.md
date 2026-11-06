@@ -50,13 +50,15 @@ Tocar num bloco do calendário abre um menu com:
 
 - **Realizada** e **Não realizada** (e voltar para pendente). O bloco muda de cor: **verde** ou **vermelho**. Na base fixa os tons são suaves; no dinâmico são vivos, para os dois grupos continuarem distinguíveis. Pendentes seguem cinza (base fixa) e roxo (dinâmico). Cada bloco também ganha um ícone, para não depender só da cor.
 - **Remarcar**, com seletor de dia e horário. Se o novo horário estiver ocupado, entra a mesma negociação do chat.
+
+**Reencaixe, uma atividade por vez:** quando você cadastra uma aula que passa a colidir com atividades extras, ou marca uma atividade extra como **Não realizada**, o app propõe até 3 janelas livres para cada uma, em ordem, e você escolhe uma, escreve outro horário ou mantém como está. Aula da rotina fixa não realizada não é reencaixada.
 - **Remover** (atividade dinâmica) ou **Cancelar só este dia** (rotina fixa). Para a rotina fixa, realizada e não realizada valem só para aquela data.
 
 ## O que o chat entende hoje
 
 | Ação | Exemplos |
 |---|---|
-| Criar | `reunião hoje às 17h` · `Estudar ML hoje 8h as 9:30` · `dentista amanhã 14h por 2:30h` · `reunião quinta 15h` |
+| Criar | `reunião hoje às 17h` · `Estudar ML hoje 8h as 9:30` · `dentista amanhã 14h por 2:30h` · `reunião quinta 15h` · vários de uma vez: `reunião amanhã 9h e dentista amanhã 10h` |
 | Remarcar | `remarque academia de sexta para 15h` · `passa o Estudar ML para amanhã 10h` · `adiar reunião 30 min` |
 | Aula cancelada (só aquele dia) | `aula de Lógica de quinta foi cancelada` · `restaurar Lógica quinta` |
 | Remover | `remover Estudar ML de hoje` |
@@ -69,13 +71,14 @@ Os testes em [`test/intent_test.dart`](test/intent_test.dart) e [`test/controlle
 
 | ✅ Implementado | 🔜 Planejado |
 |---|---|
-| Calendário duplo com atualização em tempo real | Notificações e lembretes |
-| Chat de comandos com negociação de conflito | Entrada por voz |
-| Cadastro da rotina fixa e cancelamento de aula de um dia | Repetição pelo chat ("de segunda a sexta") |
-| Remarcar, remover e desfazer | Reencaixe automático ao cadastrar uma aula nova |
-| Salvamento local (JSON, escrita atômica) | LLM opcional para frases livres |
-| Layout de celular: 3 dias, chat compacto embaixo, deslizar para navegar | |
-| Tocar num bloco: marcar realizada / não realizada, remarcar, remover ou cancelar só aquele dia | |
+| Calendário duplo com atualização em tempo real | Feriados marcados no cabeçalho do dia |
+| Chat de comandos com negociação de conflito | Notificações e lembretes |
+| Cadastro da rotina fixa e cancelamento de aula de um dia | Entrada por voz |
+| Remarcar, remover e desfazer | Repetição pelo chat ("de segunda a sexta") |
+| Salvamento local (JSON, escrita atômica) | Exportar e importar a agenda |
+| Layout de celular: 3 dias, chat compacto, deslizar para navegar | LLM opcional para frases livres |
+| Tocar num bloco: realizada, não realizada, remarcar, remover | |
+| Reencaixe, uma atividade por vez, com opções de horário | |
 | Testes do motor, do parser, da persistência, de conversas e de layout | |
 
 **Limitações conhecidas**

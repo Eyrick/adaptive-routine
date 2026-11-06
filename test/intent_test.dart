@@ -131,4 +131,20 @@ void main() {
     expect(isUndoCommand('desfazer cancelamento quinta'), isFalse);
     expect(isRestoreCommand('restaura logica quinta'), isTrue);
   });
+
+  test('vários eventos numa frase', () {
+    expect(splitEvents('reunião amanhã 9h e dentista amanhã 10h'),
+        ['reunião amanhã 9h', 'dentista amanhã 10h']);
+    expect(splitEvents('reunião 9h, dentista 10h e academia 19h'),
+        ['reunião 9h', 'dentista 10h', 'academia 19h']);
+    // dia dito uma vez vale para todos
+    expect(splitEvents('reunião 9h e dentista 10h amanhã'),
+        ['reunião 9h amanhã', 'dentista 10h amanhã']);
+  });
+
+  test('um evento só: "e" dentro do título não divide', () {
+    expect(splitEvents('Estudo e revisão 10h'), ['Estudo e revisão 10h']);
+    expect(splitEvents('jantar com Ana e Pedro 20h'), ['jantar com Ana e Pedro 20h']);
+    expect(splitEvents('reunião hoje às 17h'), ['reunião hoje às 17h']);
+  });
 }

@@ -237,3 +237,10 @@ sequenceDiagram
 - Cores em `block_style.dart`: pendente cinza/roxo; realizada verde e não realizada vermelho, com tons **suaves** na base fixa e **vivos** no dinâmico. Um ícone acompanha a cor.
 - O menu (`block_sheet.dart`) chama o `CalendarController` (`setStatus`, `moveBlock`, `removeBlock`, `cancelOccurrence`). `moveBlock` usa o mesmo caminho do comando de chat (`request(..., replaceId:)`), então a negociação de conflito e o desfazer funcionam igual.
 - Remarcar volta a situação para pendente. O app passou a usar a localização `pt_BR` (`flutter_localizations`) para os seletores de data e hora.
+
+## 17. Reencaixe, uma atividade por vez
+
+- Gatilhos: (a) uma regra da rotina fixa nova ou editada, ou uma aula restaurada, passa a colidir com atividades dinâmicas futuras; (b) uma atividade **dinâmica** é marcada como não realizada. Aula da rotina fixa não realizada não gera reencaixe.
+- Cada item reusa a negociação já existente: um `PendingConflict` no estágio de preferência, com `replaces` apontando para o bloco que vai mudar de lugar e `reflowQueue` com os próximos. As janelas vêm de `suggestSlots` (até 3), sem repetir o horário atual.
+- O usuário escolhe uma janela, escreve outro dia/horário ou mantém ("Manter onde está" / "Deixar assim"); em seguida o app passa para o próximo da fila. Nada é movido sem confirmação, e o "desfazer" cobre cada passo.
+- Um bloco reencaixado volta para pendente.

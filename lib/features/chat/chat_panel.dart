@@ -24,7 +24,7 @@ class PendingChips extends ConsumerWidget {
             label: Text('${dayDate(p.suggestions[i].start)} ${hhmm(p.suggestions[i].start)}'),
             onPressed: () => ctl.resolve(i),
           ),
-        ActionChip(label: const Text('Cancelar'), onPressed: ctl.cancelPending),
+        ActionChip(label: Text(p.cancelLabel ?? 'Cancelar'), onPressed: ctl.cancelPending),
       ],
     ]);
   }

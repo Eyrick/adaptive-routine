@@ -206,4 +206,121 @@ void main() {
     await tick();
     expect(dyn(c, 'Dentista'), isEmpty);
   });
+
+  test('reencaixe: aula nova colide com duas atividades, uma por vez', () async {
+    final c = make();
+    final ctl = c.read(calendarProvider.notifier);
+    ctl.submit('reunião amanhã 9h');
+    ctl.submit('dentista amanhã 10h');
+    await tick();
+    final reuniao0 = dyn(c, 'Reunião').single;
+    final dentista0 = dyn(c, 'Dentista').single;
+
+    // aula nova, das 9h30 às 10h30, colide com as duas
+    ctl.saveRule(const FixedRule(
+      id: 'r1',
+      title: 'Aula',
+      weekdays: [1, 2, 3, 4, 5, 6, 7],
+      startMin: 9 * 60 + 30,
+      endMin: 10 * 60 + 30,
+    ));
+    await tick();
+
+    var p = c.read(calendarProvider).pending;
+    expect(p, isNotNull);
+    expect(p!.incoming.title, 'Reunião'); // por ordem de horário
+    expect(p.reflowQueue, [dentista0.id]);
+    expect(p.cancelLabel, 'Manter onde está');
+    expect(p.suggestions, isNotEmpty);
+
+    ctl.resolve(0);
+    await tick();
+    expect(dyn(c, 'Reunião').single.start, isNot(reuniao0.start));
+    p = c.read(calendarProvider).pending;
+    expect(p, isNotNull);
+    expect(p!.incoming.title, 'Dentista'); // passa para a próxima
+
+    ctl.cancelPending(); // mantém o dentista onde está
+    await tick();
+    expect(c.read(calendarProvider).pending, isNull);
+    expect(dyn(c, 'Dentista').single.start, dentista0.start);
+  });
+
+  test('não realizada: oferece reencaixar só atividade dinâmica', () async {
+    const rule = FixedRule(
+      id: 'r1',
+      title: 'Aula',
+      weekdays: [1, 2, 3, 4, 5, 6, 7],
+      startMin: 9 * 60,
+      endMin: 10 * 60,
+    );
+    final c = make(rules: [rule]);
+    final ctl = c.read(calendarProvider.notifier);
+
+    ctl.submit('dentista amanhã 14h');
+    await tick();
+    final d0 = dyn(c, 'Dentista').single;
+
+    ctl.setStatus(d0, BlockStatus.missed);
+    await tick();
+    final p = c.read(calendarProvider).pending;
+    expect(p, isNotNull);
+    expect(p!.cancelLabel, 'Deixar assim');
+    expect(p.suggestions.every((s) => s.start != d0.start), isTrue);
+
+    ctl.resolve(0);
+    await tick();
+    final d1 = dyn(c, 'Dentista').single;
+    expect(d1.status, BlockStatus.planned);
+    expect(d1.start, isNot(d0.start));
+    expect(c.read(calendarProvider).pending, isNull);
+
+    // aula da rotina fixa não realizada: não oferece reencaixe
+    final aula = c.read(calendarProvider).blocks.firstWhere((b) =>
+        b.layer == Layer.fixed && b.start.day == tomorrow.day && b.start.month == tomorrow.month);
+    ctl.setStatus(aula, BlockStatus.missed);
+    await tick();
+    expect(c.read(calendarProvider).pending, isNull);
+
+    // "Deixar assim" mantém a atividade como não realizada
+    ctl.setStatus(d1, BlockStatus.missed);
+    await tick();
+    expect(c.read(calendarProvider).pending, isNotNull);
+    ctl.cancelPending();
+    await tick();
+    expect(dyn(c, 'Dentista').single.status, BlockStatus.missed);
+  });
+
+  test('uma frase com dois eventos cria os dois', () async {
+    final c = make();
+    final ctl = c.read(calendarProvider.notifier);
+
+    ctl.submit('reunião amanhã 9h e dentista amanhã 10h');
+    await tick();
+    expect(dyn(c, 'Reunião').single.start.hour, 9);
+    expect(dyn(c, 'Dentista').single.start.hour, 10);
+    expect(c.read(calendarProvider).pending, isNull);
+  });
+
+  test('dois eventos numa frase: o segundo espera a negociação do primeiro', () async {
+    final c = make();
+    final ctl = c.read(calendarProvider.notifier);
+
+    ctl.submit('estudo amanhã 9h');
+    await tick();
+    ctl.submit('reunião amanhã 9h e dentista amanhã 11h'); // a reunião bate com o estudo
+    await tick();
+    final p = c.read(calendarProvider).pending;
+    expect(p, isNotNull);
+    expect(p!.queuedCommands, ['dentista amanhã 11h']);
+    expect(dyn(c, 'Dentista'), isEmpty); // ainda não entrou
+
+    ctl.submit('sim');
+    await tick();
+    ctl.resolve(0);
+    await tick();
+    expect(c.read(calendarProvider).pending, isNull);
+    expect(dyn(c, 'Reunião').single.start.hour, 9);
+    expect(dyn(c, 'Dentista').single.start.hour, 11); // entrou depois
+  });
 }

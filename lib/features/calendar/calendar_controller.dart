@@ -23,6 +23,9 @@ class PendingConflict {
     required this.blockedByFixed,
     required this.stage,
     this.replaces,
+    this.reflowQueue = const [],
+    this.cancelLabel,
+    this.queuedCommands = const [],
   });
   final TimeBlock incoming;
   final List<TimeBlock> conflicts;
@@ -31,6 +34,13 @@ class PendingConflict {
   final Stage stage;
   /// id do bloco que está sendo remarcado (some quando a remarcação é confirmada).
   final String? replaces;
+  /// Reencaixe: ids das próximas atividades a reencaixar depois desta.
+  final List<String> reflowQueue;
+  /// Reencaixe: texto do botão que mantém a atividade como está (null = negociação normal).
+  final String? cancelLabel;
+  /// Frases de uma mensagem com vários eventos que ainda esperam esta negociação terminar.
+  final List<String> queuedCommands;
+  bool get isReflow => cancelLabel != null;
 
   PendingConflict copyWith({List<SlotSuggestion>? suggestions, bool? blockedByFixed, Stage? stage}) =>
       PendingConflict(
@@ -40,6 +50,9 @@ class PendingConflict {
         blockedByFixed: blockedByFixed ?? this.blockedByFixed,
         stage: stage ?? this.stage,
         replaces: replaces,
+        reflowQueue: reflowQueue,
+        cancelLabel: cancelLabel,
+        queuedCommands: queuedCommands,
       );
 }
 
@@ -199,14 +212,7 @@ class CalendarController extends Notifier<CalendarState> {
 
     state = state.copyWith(rules: rules, blocks: [...fixed, ...dyn], clearPending: true);
     _say(note);
-    if (clashes.isNotEmpty) {
-      final list = clashes
-          .take(5)
-          .map((b) => '"${b.title}" (${dayDate(b.start)} ${hhmm(b.start)})')
-          .join(', ');
-      _say('Atenção: ${clashes.length} atividade(s) do calendário dinâmico agora colidem com a rotina fixa: $list. '
-          'Use "remover <nome>" se quiser tirar alguma.');
-    }
+    _reflowNext(clashes.map((b) => b.id).toList());
   }
 
   void _say(String text, {bool user = false}) {
@@ -261,12 +267,33 @@ class CalendarController extends Notifier<CalendarState> {
       _handleReply(t, open);
       return;
     }
+    final parts = splitEvents(t);
+    if (parts.length > 1) {
+      _runEvents(parts);
+      return;
+    }
     final incoming = parseIntent(t, DateTime.now());
     if (incoming == null) {
       _say('Não identifiquei um horário. Ex.: "reunião hoje às 17h".');
       return;
     }
     request(incoming);
+  }
+
+  /// Adiciona vários eventos de uma mesma mensagem, um de cada vez. Se algum
+  /// abrir uma negociação de conflito, os restantes esperam ela terminar.
+  void _runEvents(List<String> parts) {
+    final rest = [...parts];
+    while (rest.isNotEmpty) {
+      final text = rest.removeAt(0);
+      final b = parseIntent(text, DateTime.now());
+      if (b == null) {
+        _say('Não consegui entender "$text". Ex.: "reunião hoje às 17h".');
+        continue;
+      }
+      request(b, queued: rest);
+      if (state.pending != null) return;
+    }
   }
 
   /// Dados de exemplo para quem acabou de abrir o app (só em agenda sem rotina).
@@ -346,6 +373,58 @@ class CalendarController extends Notifier<CalendarState> {
       BlockStatus.missed => 'Marquei "${b.title}" como não realizada.',
       BlockStatus.planned => 'Voltei "${b.title}" para pendente.',
     });
+    // Só atividades dinâmicas: aula faltada não se reencaixa.
+    if (b.layer == Layer.dynamic && status == BlockStatus.missed) {
+      _reflowNext([b.id], missed: true);
+    }
+  }
+
+  /// Reencaixe, uma atividade por vez: propõe janelas para atividades dinâmicas
+  /// que passaram a colidir com a rotina fixa, ou que foram marcadas como não
+  /// realizadas ([missed]). Quem decide é o usuário: escolhe uma janela ou mantém.
+  void _reflowNext(List<String> queue, {bool missed = false}) {
+    final rest = [...queue];
+    while (rest.isNotEmpty) {
+      final id = rest.removeAt(0);
+      final b = state.blocks.where((x) => x.id == id).firstOrNull;
+      if (b == null || b.layer != Layer.dynamic) continue;
+
+      final others = _without(b.id);
+      final conflicts = findConflicts(others, b).where((x) => x.layer == Layer.fixed).toList();
+      if (!missed && conflicts.isEmpty) continue; // já ficou resolvido
+
+      final sug = suggestSlots(
+        others,
+        duration: b.duration,
+        weekStart: _today,
+        preferred: b.start,
+        notBefore: DateTime.now(),
+        max: 4,
+      ).where((x) => x.start != b.start).take(3).toList();
+      if (sug.isEmpty) {
+        _say('Não encontrei janela livre para "${b.title}" nos próximos dias. Ela fica onde está.');
+        continue;
+      }
+
+      state = state.copyWith(
+        pending: PendingConflict(
+          incoming: b,
+          conflicts: conflicts,
+          suggestions: sug,
+          blockedByFixed: true,
+          stage: Stage.preference,
+          replaces: b.id,
+          reflowQueue: rest,
+          cancelLabel: missed ? 'Deixar assim' : 'Manter onde está',
+        ),
+      );
+      final more = rest.isEmpty ? '' : ' (depois desta, faltam ${rest.length})';
+      _say(missed
+          ? 'Quer reencaixar "${b.title}"? Estas são as melhores janelas, ou escreva um dia e horário, ex.: "amanhã 19h".'
+          : '"${b.title}" (${dayDate(b.start)} ${hhmm(b.start)}) agora colide com "${conflicts.first.title}"$more. '
+              'Onde encaixar? Escolha uma janela ou escreva, ex.: "amanhã 19h".');
+      return;
+    }
   }
 
   void removeBlock(TimeBlock b) {
@@ -535,7 +614,7 @@ class CalendarController extends Notifier<CalendarState> {
 
   /// Coloca [incoming] na agenda. Com [replaceId], é uma remarcação: o bloco
   /// antigo só some quando o novo horário é confirmado.
-  void request(TimeBlock incoming, {String? replaceId}) {
+  void request(TimeBlock incoming, {String? replaceId, List<String> queued = const []}) {
     final others = _without(replaceId);
     final conflicts = findConflicts(others, incoming);
     final moving = replaceId != null;
@@ -589,6 +668,7 @@ class CalendarController extends Notifier<CalendarState> {
         blockedByFixed: blockedByFixed,
         stage: blockedByFixed ? Stage.preference : Stage.priority,
         replaces: replaceId,
+        queuedCommands: queued,
       ),
     );
     final c = conflicts.first;
@@ -657,13 +737,15 @@ class CalendarController extends Notifier<CalendarState> {
     final s = p.suggestions[index];
 
     if (p.blockedByFixed) {
-      final placed = p.incoming.copyWith(start: s.start, end: s.end);
+      final placed = p.incoming.copyWith(start: s.start, end: s.end, status: BlockStatus.planned);
       state = state.copyWith(
         blocks: [..._without(p.replaces), placed],
         rules: _rulesSkipping(p.replaces),
         clearPending: true,
       );
       _say('Pronto: ${p.replaces != null ? 'remarquei ' : ''}"${placed.title}" ${dayDate(s.start)} às ${hhmm(s.start)}.');
+      _reflowNext(p.reflowQueue);
+      _runEvents(p.queuedCommands);
       return;
     }
 
@@ -692,11 +774,19 @@ class CalendarController extends Notifier<CalendarState> {
     }
     state = state.copyWith(blocks: working, rules: _rulesSkipping(p.replaces), clearPending: true);
     _say('Feito. ${p.incoming.title} às ${hhmm(p.incoming.start)}; ${moved.join(', ')}.');
+    _runEvents(p.queuedCommands);
   }
 
   void cancelPending() {
+    final p = state.pending;
     state = state.copyWith(clearPending: true);
-    _say('Ok, nada foi alterado.');
+    if (p != null && p.isReflow) {
+      _say('Ok, mantive "${p.incoming.title}" onde estava.');
+      _reflowNext(p.reflowQueue);
+    } else {
+      _say('Ok, nada foi alterado.');
+      if (p != null) _runEvents(p.queuedCommands);
+    }
   }
 }
 
