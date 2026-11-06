@@ -136,4 +136,74 @@ void main() {
     ctl.goToToday();
     expect(c.read(calendarProvider).focusDay, s0.focusDay);
   });
+
+  test('marcar realizada/não realizada: dinâmica e ocorrência fixa, com desfazer', () async {
+    const rule = FixedRule(
+      id: 'r1',
+      title: 'Aula',
+      weekdays: [1, 2, 3, 4, 5, 6, 7],
+      startMin: 9 * 60,
+      endMin: 10 * 60,
+    );
+    final c = make(rules: [rule]);
+    final ctl = c.read(calendarProvider.notifier);
+
+    ctl.submit('dentista amanhã 14h');
+    await tick();
+    ctl.setStatus(dyn(c, 'Dentista').single, BlockStatus.done);
+    await tick();
+    expect(dyn(c, 'Dentista').single.status, BlockStatus.done);
+
+    bool isTomorrow(TimeBlock b) => b.start.day == tomorrow.day && b.start.month == tomorrow.month;
+    final aula = c.read(calendarProvider).blocks.firstWhere((b) => b.layer == Layer.fixed && isTomorrow(b));
+    ctl.setStatus(aula, BlockStatus.missed);
+    await tick();
+    final st = c.read(calendarProvider);
+    expect(st.rules.single.statuses[dateKey(tomorrow)], BlockStatus.missed);
+    expect(st.blocks.firstWhere((b) => b.layer == Layer.fixed && isTomorrow(b)).status, BlockStatus.missed);
+    // outro dia segue pendente
+    expect(st.blocks.firstWhere((b) => b.layer == Layer.fixed && !isTomorrow(b)).status, BlockStatus.planned);
+
+    ctl.submit('desfazer');
+    await tick();
+    expect(c.read(calendarProvider).rules.single.statuses, isEmpty);
+  });
+
+  test('ações do menu do bloco: remarcar, remover e cancelar só o dia', () async {
+    const rule = FixedRule(
+      id: 'r1',
+      title: 'Aula',
+      weekdays: [1, 2, 3, 4, 5, 6, 7],
+      startMin: 9 * 60,
+      endMin: 10 * 60,
+    );
+    final c = make(rules: [rule]);
+    final ctl = c.read(calendarProvider.notifier);
+
+    ctl.submit('dentista amanhã 14h');
+    await tick();
+    final d = dyn(c, 'Dentista').single;
+    ctl.setStatus(d, BlockStatus.missed);
+    await tick();
+
+    // remarcar: volta a pendente no novo horário
+    ctl.moveBlock(dyn(c, 'Dentista').single,
+        DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 16));
+    await tick();
+    final moved = dyn(c, 'Dentista').single;
+    expect(moved.start.hour, 16);
+    expect(moved.status, BlockStatus.planned);
+
+    // cancelar só o dia da aula
+    final aula = c.read(calendarProvider).blocks.firstWhere((b) =>
+        b.layer == Layer.fixed && b.start.day == tomorrow.day && b.start.month == tomorrow.month);
+    ctl.cancelOccurrence(aula);
+    await tick();
+    expect(c.read(calendarProvider).rules.single.skipDates, [dateKey(tomorrow)]);
+
+    // remover a atividade
+    ctl.removeBlock(dyn(c, 'Dentista').single);
+    await tick();
+    expect(dyn(c, 'Dentista'), isEmpty);
+  });
 }

@@ -136,6 +136,7 @@ class _RuleEditorDialogState extends State<RuleEditorDialog> {
         startMin: _start,
         endMin: _end,
         skipDates: widget.initial?.skipDates ?? const [],
+        statuses: widget.initial?.statuses ?? const {},
       ),
     );
   }

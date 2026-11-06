@@ -44,6 +44,14 @@ App:  Feito. Reunião às 17:00; "Estudo de Física" → Seg 2/11 19:00.
 
 **O que está planejado:** colocar um LLM atrás de uma interface, apenas para transformar frases livres em uma *intenção* estruturada. O princípio de design continua o mesmo: o modelo só interpreta, e o **motor decide**. Isso ainda **não está implementado**. Os detalhes estão em [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
+## Tocando nos blocos
+
+Tocar num bloco do calendário abre um menu com:
+
+- **Realizada** e **Não realizada** (e voltar para pendente). O bloco muda de cor: **verde** ou **vermelho**. Na base fixa os tons são suaves; no dinâmico são vivos, para os dois grupos continuarem distinguíveis. Pendentes seguem cinza (base fixa) e roxo (dinâmico). Cada bloco também ganha um ícone, para não depender só da cor.
+- **Remarcar**, com seletor de dia e horário. Se o novo horário estiver ocupado, entra a mesma negociação do chat.
+- **Remover** (atividade dinâmica) ou **Cancelar só este dia** (rotina fixa). Para a rotina fixa, realizada e não realizada valem só para aquela data.
+
 ## O que o chat entende hoje
 
 | Ação | Exemplos |
@@ -67,6 +75,7 @@ Os testes em [`test/intent_test.dart`](test/intent_test.dart) e [`test/controlle
 | Remarcar, remover e desfazer | Reencaixe automático ao cadastrar uma aula nova |
 | Salvamento local (JSON, escrita atômica) | LLM opcional para frases livres |
 | Layout de celular: 3 dias, chat compacto embaixo, deslizar para navegar | |
+| Tocar num bloco: marcar realizada / não realizada, remarcar, remover ou cancelar só aquele dia | |
 | Testes do motor, do parser, da persistência, de conversas e de layout | |
 
 **Limitações conhecidas**

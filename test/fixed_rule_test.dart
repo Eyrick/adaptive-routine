@@ -74,4 +74,31 @@ void main() {
     });
     expect(old.skipDates, isEmpty);
   });
+
+  test('situação por data: realizada/não realizada na rotina fixa e no bloco', () {
+    final r = calc.copyWith(statuses: {
+      dateKey(DateTime(2026, 10, 26)): BlockStatus.done,
+      dateKey(DateTime(2026, 10, 28)): BlockStatus.missed,
+    });
+    final blocks = expandRules([r], monday, 0, 0);
+    expect(blocks.firstWhere((b) => b.start.day == 26).status, BlockStatus.done);
+    expect(blocks.firstWhere((b) => b.start.day == 28).status, BlockStatus.missed);
+
+    final back = FixedRule.fromJson(r.toJson());
+    expect(back.statuses[dateKey(DateTime(2026, 10, 28))], BlockStatus.missed);
+    // arquivo antigo, sem o campo "status"
+    final old = FixedRule.fromJson({
+      'id': 'x', 'title': 'T', 'weekdays': [1], 'startMin': 480, 'endMin': 600,
+    });
+    expect(old.statuses, isEmpty);
+
+    final b = TimeBlock(
+      id: 'dy-1', title: 'X', layer: Layer.dynamic,
+      start: DateTime(2026, 11, 2, 9), end: DateTime(2026, 11, 2, 10),
+      status: BlockStatus.missed,
+    );
+    expect(TimeBlock.fromJson(b.toJson()).status, BlockStatus.missed);
+    final legacy = b.toJson()..remove('status');
+    expect(TimeBlock.fromJson(legacy).status, BlockStatus.planned);
+  });
 }

@@ -312,6 +312,81 @@ class CalendarController extends Notifier<CalendarState> {
     _say('Desfeito. Voltei a agenda ao estado anterior.');
   }
 
+  // ---- Ações dos blocos (menu ao tocar num bloco) -----------------------------
+
+  FixedRule? _ruleOf(TimeBlock b) =>
+      state.rules.where((r) => b.id.startsWith('fx-${r.id}-')).firstOrNull;
+
+  /// Marca como realizada / não realizada (ou volta a pendente). Para blocos da
+  /// rotina fixa, a situação vale só para aquela data.
+  void setStatus(TimeBlock b, BlockStatus status) {
+    if (b.layer == Layer.dynamic) {
+      state = state.copyWith(
+        blocks: [for (final x in state.blocks) x.id == b.id ? x.copyWith(status: status) : x],
+      );
+    } else {
+      final rule = _ruleOf(b);
+      if (rule == null) return;
+      final key = dateKey(b.start);
+      final map = {...rule.statuses};
+      if (status == BlockStatus.planned) {
+        map.remove(key);
+      } else {
+        map[key] = status;
+      }
+      final rules = [for (final r in state.rules) r.id == rule.id ? r.copyWith(statuses: map) : r];
+      final dyn = state.blocks.where((x) => x.layer == Layer.dynamic).toList();
+      state = state.copyWith(
+        rules: rules,
+        blocks: [...expandRules(rules, _baseMonday, _backWeeks, _aheadWeeks), ...dyn],
+      );
+    }
+    _say(switch (status) {
+      BlockStatus.done => 'Marquei "${b.title}" como realizada.',
+      BlockStatus.missed => 'Marquei "${b.title}" como não realizada.',
+      BlockStatus.planned => 'Voltei "${b.title}" para pendente.',
+    });
+  }
+
+  void removeBlock(TimeBlock b) {
+    if (b.layer != Layer.dynamic) return;
+    state = state.copyWith(
+      blocks: state.blocks.where((x) => x.id != b.id).toList(),
+      clearPending: true,
+    );
+    _say('Removi "${b.title}" (${dayDate(b.start)} ${hhmm(b.start)}–${hhmm(b.end)}).');
+  }
+
+  /// Cancela só a ocorrência daquele dia de um bloco da rotina fixa.
+  void cancelOccurrence(TimeBlock b) => _cancelFixed(
+        [b],
+        RemoveIntent(day: DateTime(b.start.year, b.start.month, b.start.day)),
+      );
+
+  void moveBlock(TimeBlock b, DateTime newStart) => _relocate(b, newStart);
+
+  void _relocate(TimeBlock b, DateTime newStart) {
+    final newEnd = newStart.add(b.duration);
+    if (newStart == b.start) {
+      _say('"${b.title}" já está nesse horário.');
+      return;
+    }
+    if (newEnd.isBefore(DateTime.now())) {
+      _say('Esse horário já passou. Escolha um horário futuro para "${b.title}".');
+      return;
+    }
+    final incoming = b.layer == Layer.dynamic
+        ? b.copyWith(start: newStart, end: newEnd, status: BlockStatus.planned)
+        : TimeBlock(
+            id: newBlockId(),
+            title: b.title,
+            layer: Layer.dynamic,
+            start: newStart,
+            end: newEnd,
+          );
+    request(incoming, replaceId: b.id);
+  }
+
   /// Remarca um evento: "remarque X para amanhã 15h", "adiar X 30 min".
   /// Evento fixo: só aquela data é cancelada e vira uma atividade dinâmica.
   void _move(MoveIntent mv) {
@@ -355,26 +430,7 @@ class CalendarController extends Notifier<CalendarState> {
     final day = mv.targetDay ?? DateTime(b.start.year, b.start.month, b.start.day);
     final mins = mv.targetMinutes ?? (b.start.hour * 60 + b.start.minute);
     final newStart = mv.shift != null ? b.start.add(mv.shift!) : DateTime(day.year, day.month, day.day, 0, mins);
-    final newEnd = newStart.add(b.duration);
-
-    if (newStart == b.start) {
-      _say('"${b.title}" já está nesse horário.');
-      return;
-    }
-    if (newEnd.isBefore(now)) {
-      _say('Esse horário já passou. Escolha um horário futuro para "${b.title}".');
-      return;
-    }
-    final incoming = b.layer == Layer.dynamic
-        ? b.copyWith(start: newStart, end: newEnd)
-        : TimeBlock(
-            id: newBlockId(),
-            title: b.title,
-            layer: Layer.dynamic,
-            start: newStart,
-            end: newEnd,
-          );
-    request(incoming, replaceId: b.id);
+    _relocate(b, newStart);
   }
 
   void _remove(RemoveIntent r) {

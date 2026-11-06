@@ -23,6 +23,7 @@ class FixedRule {
     required this.startMin,
     required this.endMin,
     this.skipDates = const [],
+    this.statuses = const {},
   });
 
   final String id;
@@ -33,14 +34,17 @@ class FixedRule {
   /// Datas ("yyyy-MM-dd") em que a aula foi cancelada. A regra segue valendo
   /// nas outras semanas.
   final List<String> skipDates;
+  /// Situação por data ("yyyy-MM-dd"): aula realizada ou não realizada.
+  final Map<String, BlockStatus> statuses;
 
-  FixedRule copyWith({List<String>? skipDates}) => FixedRule(
+  FixedRule copyWith({List<String>? skipDates, Map<String, BlockStatus>? statuses}) => FixedRule(
         id: id,
         title: title,
         weekdays: weekdays,
         startMin: startMin,
         endMin: endMin,
         skipDates: skipDates ?? this.skipDates,
+        statuses: statuses ?? this.statuses,
       );
 
   String get daysLabel => weekdays.map((d) => weekdayShort[d - 1]).join(' · ');
@@ -52,6 +56,7 @@ class FixedRule {
         'startMin': startMin,
         'endMin': endMin,
         'skip': skipDates,
+        'status': {for (final e in statuses.entries) e.key: e.value.name},
       };
 
   factory FixedRule.fromJson(Map<String, dynamic> j) => FixedRule(
@@ -61,6 +66,10 @@ class FixedRule {
         startMin: j['startMin'] as int,
         endMin: j['endMin'] as int,
         skipDates: [for (final d in (j['skip'] as List? ?? const [])) d as String],
+        statuses: {
+          for (final e in ((j['status'] as Map?) ?? const {}).entries)
+            e.key as String: BlockStatus.values.byName(e.value as String),
+        },
       );
 }
 
@@ -90,13 +99,15 @@ List<TimeBlock> expandRules(
     for (final r in rules) {
       for (final wd in r.weekdays) {
         final day = DateTime(baseMonday.year, baseMonday.month, baseMonday.day + w * 7 + (wd - 1));
-        if (r.skipDates.contains(dateKey(day))) continue;
+        final key = dateKey(day);
+        if (r.skipDates.contains(key)) continue;
         out.add(TimeBlock(
           id: 'fx-${r.id}-$w-$wd',
           title: r.title,
           layer: Layer.fixed,
           start: DateTime(day.year, day.month, day.day, 0, r.startMin),
           end: DateTime(day.year, day.month, day.day, 0, r.endMin),
+          status: r.statuses[key] ?? BlockStatus.planned,
         ));
       }
     }

@@ -229,3 +229,11 @@ sequenceDiagram
 - Dentro do calendário, abaixo de 640 px são mostrados **3 dias** a partir de `focusDay`; setas e deslizar para o lado andam de 3 em 3. Acima disso, a semana de 7 dias de sempre.
 - `weekStart` (segunda-feira da semana que contém `focusDay`) continua sendo a referência para "quinta", "sexta" etc. nos comandos.
 - Coberto por testes de widget em tamanhos de celular e de desktop (`test/layout_test.dart`). **Validação visual em janela estreita e em aparelho real ainda pendente.**
+
+## 16. Situação dos blocos e menu ao tocar
+
+- `BlockStatus { planned, done, missed }`. Em blocos **dinâmicos** a situação é um campo do bloco (`schedule.json`). Em blocos da **rotina fixa** é guardada por data dentro da regra (`FixedRule.statuses`, em `routine.json`), pois a regra gera um bloco por semana.
+- Arquivos antigos sem esses campos carregam normalmente (padrão: pendente).
+- Cores em `block_style.dart`: pendente cinza/roxo; realizada verde e não realizada vermelho, com tons **suaves** na base fixa e **vivos** no dinâmico. Um ícone acompanha a cor.
+- O menu (`block_sheet.dart`) chama o `CalendarController` (`setStatus`, `moveBlock`, `removeBlock`, `cancelOccurrence`). `moveBlock` usa o mesmo caminho do comando de chat (`request(..., replaceId:)`), então a negociação de conflito e o desfazer funcionam igual.
+- Remarcar volta a situação para pendente. O app passou a usar a localização `pt_BR` (`flutter_localizations`) para os seletores de data e hora.

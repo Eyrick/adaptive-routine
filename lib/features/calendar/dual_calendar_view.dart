@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models.dart';
 import '../../domain/scheduling.dart';
 import '../routine/routine_screen.dart';
+import 'block_sheet.dart';
+import 'block_style.dart';
 import 'calendar_controller.dart';
 
 const double _hourH = 56;
@@ -159,6 +161,7 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
                         child: _DayColumn(
                           startH: startH,
                           endH: endH,
+                          onTapBlock: (b) => showBlockActions(context, b),
                           blocks: visible.where((b) {
                             if (!sameDay(b.start, d)) return false;
                             return b.layer == Layer.fixed ? showFixed : showDynamic;
@@ -182,8 +185,10 @@ class _DayColumn extends StatelessWidget {
     required this.startH,
     required this.endH,
     required this.blocks,
+    required this.onTapBlock,
     this.ghost,
   });
+  final void Function(TimeBlock) onTapBlock;
   final int startH, endH;
   final List<TimeBlock> blocks;
   final TimeBlock? ghost;
@@ -223,7 +228,7 @@ class _DayColumn extends StatelessWidget {
               tween: Tween(begin: 0, end: 1),
               duration: const Duration(milliseconds: 250),
               builder: (_, v, child) => Opacity(opacity: v, child: child),
-              child: _BlockTile(block: b),
+              child: _BlockTile(block: b, onTap: () => onTapBlock(b)),
             ),
           ),
         if (ghost != null)
@@ -249,33 +254,45 @@ class _DayColumn extends StatelessWidget {
 }
 
 class _BlockTile extends StatelessWidget {
-  const _BlockTile({required this.block});
+  const _BlockTile({required this.block, required this.onTap});
   final TimeBlock block;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final fixed = block.layer == Layer.fixed;
-    final bg = fixed ? cs.surfaceContainerHighest : cs.primaryContainer;
-    final fg = fixed ? cs.onSurfaceVariant : cs.onPrimaryContainer;
-    final accent = fixed ? cs.outline : cs.primary;
+    final st = blockStyle(cs, block.layer, block.status);
+    final IconData? statusIcon = switch (block.status) {
+      BlockStatus.done => Icons.check_circle,
+      BlockStatus.missed => Icons.cancel,
+      BlockStatus.planned => null,
+    };
 
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
-        border: Border(left: BorderSide(color: accent, width: 3)),
-      ),
-      padding: const EdgeInsets.fromLTRB(6, 4, 4, 4),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-          child: Text('${block.title}\n${hhmm(block.start)}',
-              overflow: TextOverflow.ellipsis,
-              maxLines: 3,
-              style: TextStyle(color: fg, fontSize: 11, height: 1.25)),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          decoration: BoxDecoration(
+            color: st.bg,
+            borderRadius: BorderRadius.circular(8),
+            border: Border(left: BorderSide(color: st.accent, width: 3)),
+          ),
+          padding: const EdgeInsets.fromLTRB(6, 4, 4, 4),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: Text('${block.title}\n${hhmm(block.start)}',
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 3,
+                  style: TextStyle(color: st.fg, fontSize: 11, height: 1.25)),
+            ),
+            if (statusIcon != null) Icon(statusIcon, size: 12, color: st.accent),
+            if (fixed) Icon(Icons.lock, size: 11, color: st.fg.withOpacity(.6)),
+          ]),
         ),
-        if (fixed) Icon(Icons.lock, size: 11, color: fg.withOpacity(.6)),
-      ]),
+      ),
     );
   }
 }

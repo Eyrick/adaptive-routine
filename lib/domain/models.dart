@@ -3,6 +3,9 @@ import 'package:flutter/foundation.dart' show immutable;
 /// Camada 1 = fixed (base imutável), Camada 2 = dynamic (extras negociáveis).
 enum Layer { fixed, dynamic }
 
+/// Situação de um bloco: pendente (padrão), realizada ou não realizada.
+enum BlockStatus { planned, done, missed }
+
 @immutable
 class TimeBlock {
   const TimeBlock({
@@ -11,6 +14,7 @@ class TimeBlock {
     required this.layer,
     required this.start,
     required this.end,
+    this.status = BlockStatus.planned,
   });
 
   final String id;
@@ -18,6 +22,7 @@ class TimeBlock {
   final Layer layer;
   final DateTime start;
   final DateTime end;
+  final BlockStatus status;
 
   Duration get duration => end.difference(start);
 
@@ -29,6 +34,7 @@ class TimeBlock {
         'layer': layer.name,
         'start': start.millisecondsSinceEpoch,
         'end': end.millisecondsSinceEpoch,
+        'status': status.name,
       };
 
   factory TimeBlock.fromJson(Map<String, dynamic> j) => TimeBlock(
@@ -37,14 +43,16 @@ class TimeBlock {
         layer: Layer.values.byName(j['layer'] as String),
         start: DateTime.fromMillisecondsSinceEpoch(j['start'] as int),
         end: DateTime.fromMillisecondsSinceEpoch(j['end'] as int),
+        status: BlockStatus.values.byName((j['status'] as String?) ?? 'planned'),
       );
 
-  TimeBlock copyWith({DateTime? start, DateTime? end}) => TimeBlock(
+  TimeBlock copyWith({DateTime? start, DateTime? end, BlockStatus? status}) => TimeBlock(
         id: id,
         title: title,
         layer: layer,
         start: start ?? this.start,
         end: end ?? this.end,
+        status: status ?? this.status,
       );
 }
 
