@@ -232,7 +232,7 @@ RemoveIntent parseRemove(String text, DateTime now, DateTime weekStart) {
     } else if (w == 'amanha') {
       day = today.add(const Duration(days: 1));
     } else if (_weekdays.containsKey(w)) {
-      final base = DateTime(weekStart.year, weekStart.month, weekStart.day + _weekdays[w]! - 1);
+      final base = DateTime(weekStart.year, weekStart.month, weekStart.day + (_weekdays[w]! - weekStart.weekday) % 7);
       day = base.isBefore(today) ? DateTime(base.year, base.month, base.day + 7) : base;
     } else {
       words.add(w);
@@ -311,7 +311,7 @@ class MoveIntent {
     } else if (w == 'amanha') {
       day = today.add(const Duration(days: 1));
     } else if (_weekdays.containsKey(w)) {
-      final base = DateTime(weekStart.year, weekStart.month, weekStart.day + _weekdays[w]! - 1);
+      final base = DateTime(weekStart.year, weekStart.month, weekStart.day + (_weekdays[w]! - weekStart.weekday) % 7);
       day = base.isBefore(today) ? DateTime(base.year, base.month, base.day + 7) : base;
     }
   }

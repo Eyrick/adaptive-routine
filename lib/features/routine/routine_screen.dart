@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/fixed_rule.dart';
 import '../../domain/scheduling.dart';
+import '../../domain/week.dart';
 import '../calendar/calendar_controller.dart';
 
 /// Tela de cadastro da rotina fixa (Camada 1). Só o usuário edita aqui:
@@ -163,7 +164,7 @@ class _RuleEditorDialogState extends State<RuleEditorDialog> {
               Text('Dias da semana', style: Theme.of(context).textTheme.labelMedium),
               const SizedBox(height: 6),
               Wrap(spacing: 6, runSpacing: 4, children: [
-                for (var wd = 1; wd <= 7; wd++)
+                for (final wd in weekdayOrder())
                   FilterChip(
                     label: Text(weekdayShort[wd - 1]),
                     selected: _days.contains(wd),

@@ -3,8 +3,10 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/block_repository.dart';
+import 'data/holiday_repository.dart';
 import 'data/rule_repository.dart';
 import 'domain/fixed_rule.dart';
+import 'domain/holiday.dart';
 import 'domain/models.dart';
 import 'features/calendar/dual_calendar_view.dart';
 import 'features/chat/chat_panel.dart';
@@ -33,8 +35,21 @@ Future<void> main() async {
     debugPrint('Sem armazenamento para a rotina fixa, usando memória: $e');
     ruleRepo = MemoryRuleRepository();
   }
+  HolidayRepository holidayRepo;
+  Map<String, Holiday>? savedHolidays;
+  try {
+    final file = await FileHolidayRepository.open();
+    debugPrint('Feriados salvos em: ${file.path}');
+    savedHolidays = await file.load();
+    holidayRepo = file;
+  } catch (e) {
+    debugPrint('Sem armazenamento para os feriados, usando memória: $e');
+    holidayRepo = MemoryHolidayRepository();
+  }
   runApp(ProviderScope(
     overrides: [
+      holidayRepositoryProvider.overrideWithValue(holidayRepo),
+      initialHolidaysProvider.overrideWithValue(savedHolidays),
       blockRepositoryProvider.overrideWithValue(repo),
       initialBlocksProvider.overrideWithValue(saved),
       ruleRepositoryProvider.overrideWithValue(ruleRepo),

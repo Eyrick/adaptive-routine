@@ -147,4 +147,12 @@ void main() {
     expect(splitEvents('jantar com Ana e Pedro 20h'), ['jantar com Ana e Pedro 20h']);
     expect(splitEvents('reunião hoje às 17h'), ['reunião hoje às 17h']);
   });
+
+  test('semana começando no domingo: dias da semana caem no lugar certo', () {
+    final sunWs = DateTime(2026, 11, 1); // domingo
+    expect(parseRemove('remover dom 8h', now, sunWs).day, DateTime(2026, 11, 1));
+    expect(parseRemove('remover seg', now, sunWs).day, DateTime(2026, 11, 2));
+    expect(parseRemove('remover sáb', now, sunWs).day, DateTime(2026, 11, 7));
+    expect(parseMove('remarcar x para quinta 10h', now, sunWs).targetDay, DateTime(2026, 11, 5));
+  });
 }

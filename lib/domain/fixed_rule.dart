@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show immutable;
 
+import 'holiday.dart';
 import 'models.dart';
 
 const weekdayShort = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -87,20 +88,24 @@ String? validateRule({
 }
 
 /// Gera os blocos fixos de [back] semanas atrás até [ahead] semanas à frente
-/// de [baseMonday] (a segunda-feira da semana atual).
+/// de [baseWeekStart] (o início da semana atual, domingo ou segunda).
 List<TimeBlock> expandRules(
   List<FixedRule> rules,
-  DateTime baseMonday,
+  DateTime baseWeekStart,
   int back,
-  int ahead,
-) {
+  int ahead, {
+  Map<String, Holiday> holidays = const {},
+}) {
   final out = <TimeBlock>[];
   for (var w = -back; w <= ahead; w++) {
     for (final r in rules) {
       for (final wd in r.weekdays) {
-        final day = DateTime(baseMonday.year, baseMonday.month, baseMonday.day + w * 7 + (wd - 1));
+        // posição do dia da semana [wd] dentro da semana que começa em baseWeekStart
+        final offset = (wd - baseWeekStart.weekday) % 7;
+        final day = DateTime(baseWeekStart.year, baseWeekStart.month, baseWeekStart.day + w * 7 + offset);
         final key = dateKey(day);
         if (r.skipDates.contains(key)) continue;
+        if (holidays[key]?.hides(r.id) ?? false) continue; // feriado/evento: este compromisso não acontece
         out.add(TimeBlock(
           id: 'fx-${r.id}-$w-$wd',
           title: r.title,

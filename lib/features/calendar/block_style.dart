@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/holiday.dart';
 import '../../domain/models.dart';
 
 class BlockStyle {
@@ -45,4 +46,22 @@ BlockStyle blockStyle(ColorScheme cs, Layer layer, BlockStatus status) {
           ? const BlockStyle(bg: Color(0xFF7F1D1D), fg: Color(0xFFFEE2E2), accent: Color(0xFFEF4444))
           : const BlockStyle(bg: Color(0xFFFECACA), fg: Color(0xFF7F1D1D), accent: Color(0xFFDC2626));
   }
+}
+
+/// Dia especial: a coluna inteira ganha um tom próprio, diferente do cinza,
+/// roxo, verde e vermelho dos blocos. Feriado = âmbar; evento = azul-céu.
+Color dayKindTint(ColorScheme cs, DayKind kind) {
+  final dark = cs.brightness == Brightness.dark;
+  return switch (kind) {
+    DayKind.holiday => dark ? const Color(0x26F59E0B) : const Color(0x33F59E0B),
+    DayKind.event => dark ? const Color(0x260EA5E9) : const Color(0x330EA5E9),
+  };
+}
+
+Color dayKindAccent(ColorScheme cs, DayKind kind) {
+  final dark = cs.brightness == Brightness.dark;
+  return switch (kind) {
+    DayKind.holiday => dark ? const Color(0xFFFBBF24) : const Color(0xFFB45309),
+    DayKind.event => dark ? const Color(0xFF38BDF8) : const Color(0xFF0369A1),
+  };
 }

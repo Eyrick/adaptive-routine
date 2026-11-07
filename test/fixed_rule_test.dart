@@ -101,4 +101,11 @@ void main() {
     final legacy = b.toJson()..remove('status');
     expect(TimeBlock.fromJson(legacy).status, BlockStatus.planned);
   });
+
+  test('expande a partir de uma semana que começa no domingo', () {
+    final sunday = DateTime(2026, 10, 25);
+    const r = FixedRule(id: 'd', title: 'X', weekdays: [7, 1, 3], startMin: 480, endMin: 540);
+    final blocks = expandRules([r], sunday, 0, 0);
+    expect(blocks.map((b) => b.start.day).toList()..sort(), [25, 26, 28]); // dom, seg, qua
+  });
 }

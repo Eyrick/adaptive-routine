@@ -3,12 +3,15 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/fixed_rule.dart';
+import '../../domain/holiday.dart';
 import '../../domain/models.dart';
 import '../../domain/scheduling.dart';
 import '../routine/routine_screen.dart';
 import 'block_sheet.dart';
 import 'block_style.dart';
 import 'calendar_controller.dart';
+import 'holiday_dialog.dart';
 
 const double _hourH = 56;
 const double _gutter = 44;
@@ -109,18 +112,12 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
           const SizedBox(width: _gutter),
           for (var i = 0; i < days.length; i++)
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  '${dayLabel(days[i])} ${days[i].day}'
-                  '${(compact && i == 0) || days[i].day == 1 ? '/${days[i].month}' : ''}',
-                  key: ValueKey('day-header-$i'),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: sameDay(days[i], DateTime.now()) ? cs.primary : cs.onSurfaceVariant,
-                        fontWeight: sameDay(days[i], DateTime.now()) ? FontWeight.w700 : null,
-                      ),
-                ),
+              child: _DayHeader(
+                key: ValueKey('day-header-$i'),
+                day: days[i],
+                showMonth: (compact && i == 0) || days[i].day == 1,
+                holiday: s.holidays[dateKey(days[i])],
+                onTap: () => showHolidayDialog(context, days[i]),
               ),
             ),
         ]),
@@ -162,6 +159,7 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
                           startH: startH,
                           endH: endH,
                           onTapBlock: (b) => showBlockActions(context, b),
+                          holiday: s.holidays[dateKey(d)],
                           blocks: visible.where((b) {
                             if (!sameDay(b.start, d)) return false;
                             return b.layer == Layer.fixed ? showFixed : showDynamic;
@@ -186,8 +184,10 @@ class _DayColumn extends StatelessWidget {
     required this.endH,
     required this.blocks,
     required this.onTapBlock,
+    this.holiday,
     this.ghost,
   });
+  final Holiday? holiday;
   final void Function(TimeBlock) onTapBlock;
   final int startH, endH;
   final List<TimeBlock> blocks;
@@ -207,7 +207,9 @@ class _DayColumn extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: cs.outlineVariant.withOpacity(.5)))),
+        color: holiday != null ? dayKindTint(cs, holiday!.kind) : null,
+        border: Border(left: BorderSide(color: cs.outlineVariant.withOpacity(.5))),
+      ),
       child: Stack(children: [
         for (var h = 0; h < endH - startH; h++)
           Positioned(
@@ -290,6 +292,64 @@ class _BlockTile extends StatelessWidget {
             ),
             if (statusIcon != null) Icon(statusIcon, size: 12, color: st.accent),
             if (fixed) Icon(Icons.lock, size: 11, color: st.fg.withOpacity(.6)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Nome do dia no cabeçalho. Tocar abre a pergunta de feriado; num feriado o
+/// nome dele aparece embaixo, em âmbar.
+class _DayHeader extends StatelessWidget {
+  const _DayHeader({
+    super.key,
+    required this.day,
+    required this.showMonth,
+    required this.holiday,
+    required this.onTap,
+  });
+  final DateTime day;
+  final bool showMonth;
+  final Holiday? holiday;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final today = sameDay(day, DateTime.now());
+    final style = Theme.of(context).textTheme.labelMedium;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Container(
+          color: holiday != null ? dayKindTint(cs, holiday!.kind) : null,
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(
+              '${dayLabel(day)} ${day.day}${showMonth ? '/${day.month}' : ''}',
+              textAlign: TextAlign.center,
+              style: style?.copyWith(
+                color: today ? cs.primary : cs.onSurfaceVariant,
+                fontWeight: today ? FontWeight.w700 : null,
+              ),
+            ),
+            if (holiday != null)
+              Text(
+                holiday!.name.isEmpty
+                    ? (holiday!.kind == DayKind.event ? 'Evento' : 'Feriado')
+                    : holiday!.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .labelSmall
+                    ?.copyWith(color: dayKindAccent(cs, holiday!.kind), fontWeight: FontWeight.w600),
+              ),
           ]),
         ),
       ),

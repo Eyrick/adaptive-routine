@@ -1,6 +1,9 @@
+import 'package:adaptive_routine/data/holiday_repository.dart';
 import 'package:adaptive_routine/data/rule_repository.dart';
 import 'package:adaptive_routine/domain/fixed_rule.dart';
+import 'package:adaptive_routine/domain/holiday.dart';
 import 'package:adaptive_routine/domain/models.dart';
+import 'package:adaptive_routine/domain/week.dart';
 import 'package:adaptive_routine/features/calendar/calendar_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -128,7 +131,7 @@ void main() {
     ctl.shiftDays(3);
     final s1 = c.read(calendarProvider);
     expect(s1.focusDay, DateTime(s0.focusDay.year, s0.focusDay.month, s0.focusDay.day + 3));
-    expect(s1.weekStart.weekday, DateTime.monday);
+    expect(s1.weekStart.weekday, kWeekStart);
 
     ctl.shiftDays(7 * 200); // além do limite: ignorado
     expect(c.read(calendarProvider).focusDay, s1.focusDay);
@@ -322,5 +325,91 @@ void main() {
     expect(c.read(calendarProvider).pending, isNull);
     expect(dyn(c, 'Reunião').single.start.hour, 9);
     expect(dyn(c, 'Dentista').single.start.hour, 11); // entrou depois
+  });
+
+  test('feriado: esconde os fixos, atividade dinâmica fica, desmarcar devolve e desfazer', () async {
+    const rule = FixedRule(
+      id: 'r1',
+      title: 'Aula',
+      weekdays: [1, 2, 3, 4, 5, 6, 7],
+      startMin: 9 * 60,
+      endMin: 10 * 60,
+    );
+    final repo = MemoryHolidayRepository();
+    final c = ProviderContainer(overrides: [
+      initialRulesProvider.overrideWithValue([rule]),
+      holidayRepositoryProvider.overrideWithValue(repo),
+    ]);
+    addTearDown(c.dispose);
+    final ctl = c.read(calendarProvider.notifier);
+    final key = dateKey(tomorrow);
+    bool tomorrowFixed(TimeBlock b) =>
+        b.layer == Layer.fixed && b.start.day == tomorrow.day && b.start.month == tomorrow.month;
+
+    expect(c.read(calendarProvider).blocks.where(tomorrowFixed), hasLength(1));
+    ctl.submit('dentista amanhã 14h'); // atividade dinâmica no dia
+    await tick();
+
+    ctl.setHoliday(tomorrow, name: 'Feriado de teste', hidesFixed: true);
+    await tick();
+    var st = c.read(calendarProvider);
+    expect(st.blocks.where(tomorrowFixed), isEmpty); // aula não acontece
+    expect(dyn(c, 'Dentista'), hasLength(1)); // atividade dinâmica continua
+    expect(st.holidays[key]!.name, 'Feriado de teste');
+    expect((await repo.load())!.containsKey(key), isTrue); // salvo
+
+    ctl.setHoliday(tomorrow, name: 'Feriado de teste', hidesFixed: false);
+    await tick();
+    expect(c.read(calendarProvider).blocks.where(tomorrowFixed), hasLength(1)); // continua
+
+    ctl.setHoliday(tomorrow, name: 'Feriado de teste', hidesFixed: true);
+    ctl.removeHoliday(tomorrow);
+    await tick();
+    st = c.read(calendarProvider);
+    expect(st.holidays, isEmpty);
+    expect(st.blocks.where(tomorrowFixed), hasLength(1)); // desmarcar devolve a aula
+
+    ctl.submit('desfazer'); // desfaz a remoção do feriado
+    await tick();
+    expect(c.read(calendarProvider).holidays.containsKey(key), isTrue);
+    expect(c.read(calendarProvider).blocks.where(tomorrowFixed), isEmpty);
+  });
+
+  test('evento: alguns compromissos fixos acontecem e outros não', () async {
+    const a = FixedRule(
+        id: 'ra', title: 'Aula A', weekdays: [1, 2, 3, 4, 5, 6, 7], startMin: 9 * 60, endMin: 10 * 60);
+    const b = FixedRule(
+        id: 'rb', title: 'Aula B', weekdays: [1, 2, 3, 4, 5, 6, 7], startMin: 14 * 60, endMin: 15 * 60);
+    final c = ProviderContainer(overrides: [
+      initialRulesProvider.overrideWithValue([a, b]),
+    ]);
+    addTearDown(c.dispose);
+    final ctl = c.read(calendarProvider.notifier);
+
+    List<String> fixedTomorrow() => c
+        .read(calendarProvider)
+        .blocks
+        .where((x) => x.layer == Layer.fixed && x.start.day == tomorrow.day && x.start.month == tomorrow.month)
+        .map((x) => x.title)
+        .toList()
+      ..sort();
+
+    expect(fixedTomorrow(), ['Aula A', 'Aula B']);
+
+    // evento: só a Aula B acontece (regra geral "não acontece", B é exceção)
+    ctl.setHoliday(tomorrow,
+        name: 'Semana de provas', kind: DayKind.event, hidesFixed: true, exceptions: ['rb']);
+    await tick();
+    expect(fixedTomorrow(), ['Aula B']);
+    expect(c.read(calendarProvider).holidays[dateKey(tomorrow)]!.kind, DayKind.event);
+
+    // agora o contrário: regra geral "acontece", só a Aula B é exceção e some
+    ctl.setHoliday(tomorrow, name: 'Semana de provas', hidesFixed: false, exceptions: ['rb']);
+    await tick();
+    expect(fixedTomorrow(), ['Aula A']);
+
+    ctl.removeHoliday(tomorrow);
+    await tick();
+    expect(fixedTomorrow(), ['Aula A', 'Aula B']);
   });
 }

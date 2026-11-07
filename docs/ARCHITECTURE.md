@@ -244,3 +244,18 @@ sequenceDiagram
 - Cada item reusa a negociação já existente: um `PendingConflict` no estágio de preferência, com `replaces` apontando para o bloco que vai mudar de lugar e `reflowQueue` com os próximos. As janelas vêm de `suggestSlots` (até 3), sem repetir o horário atual.
 - O usuário escolhe uma janela, escreve outro dia/horário ou mantém ("Manter onde está" / "Deixar assim"); em seguida o app passa para o próximo da fila. Nada é movido sem confirmação, e o "desfazer" cobre cada passo.
 - Um bloco reencaixado volta para pendente.
+
+## 18. Feriados e eventos
+
+- `Holiday { name, kind, hidesFixed, exceptions }` (`kind`: `holiday` ou `event`; arquivos antigos sem o campo são feriado), guardado por data (`yyyy-MM-dd`) em `holidays.json` (`HolidayRepository`, mesmo padrão dos outros arquivos: escrita atômica e backup `.corrupt`).
+- A escolha é **por compromisso**: `hidesFixed` é a regra geral do dia e `exceptions` lista os ids de regras que fazem o contrário. `Holiday.hides(ruleId)` responde se aquele compromisso não acontece. Um compromisso cadastrado depois segue a regra geral. Arquivos antigos (só `hidesFixed`) continuam válidos.
+- Na tela, cada compromisso tem um interruptor. Ao salvar, a regra geral é a que a maioria das escolhas indica (empate: "não acontece") e as exceções são os que divergem.
+- A escolha fica **no dia especial**, não como aula cancelada: `expandRules` pula os blocos escondidos. Assim, desmarcar o dia devolve os compromissos sem mexer em `skipDates`.
+- O "desfazer" guarda também os feriados em cada passo.
+- Atividades dinâmicas não são afetadas, e o reencaixe não conta compromissos escondidos.
+- Interface: tocar no nome do dia (`_DayHeader`) abre `HolidayDialog`. A coluna ganha o tom de `dayKindTint` (âmbar para feriado, azul-céu para evento) e o nome aparece no cabeçalho com `dayKindAccent`. Num dia novo, feriado começa com nenhum compromisso acontecendo e evento com todos (até o usuário mexer nos interruptores).
+
+## 19. Início da semana
+
+- A semana exibida começa no **domingo** (Dom ... Sáb), como nos calendários usados no Brasil. A regra fica em um só lugar, `lib/domain/week.dart` (`kWeekStart`); para voltar a Seg ... Dom basta trocar a constante para `DateTime.monday`.
+- Nada mais assume uma semana começando na segunda: `expandRules` e o interpretador de comandos calculam a posição de cada dia da semana a partir do início de semana recebido, e os botões de dia da tela Rotina fixa seguem a mesma ordem.

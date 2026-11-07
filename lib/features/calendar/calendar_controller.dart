@@ -1,9 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/block_repository.dart';
+import '../../data/holiday_repository.dart';
 import '../../data/rule_repository.dart';
 import '../../domain/fixed_rule.dart';
+import '../../domain/holiday.dart';
 import '../../domain/models.dart';
+import '../../domain/week.dart';
 import '../../domain/scheduling.dart';
 import '../chat/command_parser.dart';
 
@@ -64,13 +67,15 @@ class CalendarState {
     this.pending,
     this.messages = const [],
     this.rules = const [],
+    this.holidays = const {},
   });
   final List<TimeBlock> blocks;
-  final DateTime weekStart; // segunda-feira da semana que contém [focusDay]
+  final DateTime weekStart; // início da semana (domingo ou segunda) que contém [focusDay]
   final DateTime focusDay; // 1º dia visível no celular (3 dias); no desktop, qualquer dia da semana
   final PendingConflict? pending;
   final List<ChatMessage> messages;
   final List<FixedRule> rules; // rotina fixa cadastrada pelo usuário
+  final Map<String, Holiday> holidays; // feriados marcados, por data (yyyy-MM-dd)
 
   CalendarState copyWith({
     List<TimeBlock>? blocks,
@@ -79,6 +84,7 @@ class CalendarState {
     DateTime? weekStart,
     DateTime? focusDay,
     List<FixedRule>? rules,
+    Map<String, Holiday>? holidays,
     bool clearPending = false,
   }) =>
       CalendarState(
@@ -86,6 +92,7 @@ class CalendarState {
         weekStart: weekStart ?? this.weekStart,
         focusDay: focusDay ?? this.focusDay,
         rules: rules ?? this.rules,
+        holidays: holidays ?? this.holidays,
         messages: messages ?? this.messages,
         pending: clearPending ? null : (pending ?? this.pending),
       );
@@ -96,10 +103,11 @@ final calendarProvider =
 
 class CalendarController extends Notifier<CalendarState> {
   static const _backWeeks = 4, _aheadWeeks = 26;
-  final List<({List<TimeBlock> blocks, List<FixedRule> rules})> _undoStack = [];
+  final List<({List<TimeBlock> blocks, List<FixedRule> rules, Map<String, Holiday> holidays})> _undoStack = [];
   List<TimeBlock>? _skipBlocks; // marca uma restauração do "desfazer"
   List<FixedRule>? _skipRules;
-  DateTime _baseMonday = DateTime(2000);
+  Map<String, Holiday>? _skipHolidays;
+  DateTime _baseWeek = DateTime(2000);
 
   @override
   CalendarState build() {
@@ -107,10 +115,12 @@ class CalendarController extends Notifier<CalendarState> {
     final ruleRepo = ref.read(ruleRepositoryProvider);
     final saved = ref.read(initialBlocksProvider); // só camada dinâmica
     final rules = ref.read(initialRulesProvider) ?? const <FixedRule>[];
+    final holidayRepo = ref.read(holidayRepositoryProvider);
+    final holidays = ref.read(initialHolidaysProvider) ?? const <String, Holiday>{};
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final monday = DateTime(today.year, today.month, today.day - (today.weekday - 1));
-    _baseMonday = monday;
+    final week0 = startOfWeek(today);
+    _baseWeek = week0;
 
     final dynamicBlocks = saved ?? _seedDynamic(today);
     if (saved == null) Future.microtask(() => blockRepo.save(dynamicBlocks));
@@ -118,13 +128,18 @@ class CalendarController extends Notifier<CalendarState> {
     // Persiste sempre que blocos dinâmicos ou rotina fixa mudam.
     ref.listenSelf((prev, next) {
       if (prev == null) return;
-      final changed = !identical(prev.blocks, next.blocks) || !identical(prev.rules, next.rules);
+      final changed = !identical(prev.blocks, next.blocks) ||
+          !identical(prev.rules, next.rules) ||
+          !identical(prev.holidays, next.holidays);
       if (changed) {
-        if (identical(next.blocks, _skipBlocks) && identical(next.rules, _skipRules)) {
+        if (identical(next.blocks, _skipBlocks) &&
+            identical(next.rules, _skipRules) &&
+            identical(next.holidays, _skipHolidays)) {
           _skipBlocks = null;
           _skipRules = null;
+          _skipHolidays = null;
         } else {
-          _undoStack.add((blocks: prev.blocks, rules: prev.rules));
+          _undoStack.add((blocks: prev.blocks, rules: prev.rules, holidays: prev.holidays));
           if (_undoStack.length > 30) _undoStack.removeAt(0);
         }
       }
@@ -132,13 +147,18 @@ class CalendarController extends Notifier<CalendarState> {
         blockRepo.save(next.blocks.where((b) => b.layer == Layer.dynamic).toList());
       }
       if (!identical(prev.rules, next.rules)) ruleRepo.save(next.rules);
+      if (!identical(prev.holidays, next.holidays)) holidayRepo.save(next.holidays);
     });
 
     return CalendarState(
-      weekStart: monday,
+      weekStart: week0,
       focusDay: today,
       rules: rules,
-      blocks: [...expandRules(rules, monday, _backWeeks, _aheadWeeks), ...dynamicBlocks],
+      holidays: holidays,
+      blocks: [
+        ...expandRules(rules, week0, _backWeeks, _aheadWeeks, holidays: holidays),
+        ...dynamicBlocks,
+      ],
       messages: [
         ChatMessage(saved == null
             ? 'Olá! Tente: "Tenho uma reunião de última hora hoje às 17h" ou "remover Estudar ML de hoje".'
@@ -149,6 +169,10 @@ class CalendarController extends Notifier<CalendarState> {
       ],
     );
   }
+
+  /// Blocos fixos gerados pelas regras, já descontando os feriados que escondem aulas.
+  List<TimeBlock> _expand(List<FixedRule> rules, [Map<String, Holiday>? holidays]) =>
+      expandRules(rules, _baseWeek, _backWeeks, _aheadWeeks, holidays: holidays ?? state.holidays);
 
   DateTime get _today {
     final n = DateTime.now();
@@ -162,18 +186,78 @@ class CalendarController extends Notifier<CalendarState> {
   void shiftDays(int delta) {
     final f = state.focusDay;
     final next = DateTime(f.year, f.month, f.day + delta);
-    final monday = DateTime(next.year, next.month, next.day - (next.weekday - 1));
-    final weeks = (monday.difference(_baseMonday).inDays / 7).round();
+    final ws = startOfWeek(next);
+    final weeks = (ws.difference(_baseWeek).inDays / 7).round();
     if (weeks < -_backWeeks || weeks > _aheadWeeks) return;
-    state = state.copyWith(focusDay: next, weekStart: monday);
+    state = state.copyWith(focusDay: next, weekStart: ws);
   }
 
   void goToToday() {
     final t = _today;
     state = state.copyWith(
       focusDay: t,
-      weekStart: DateTime(t.year, t.month, t.day - (t.weekday - 1)),
+      weekStart: startOfWeek(t),
     );
+  }
+
+  // ---- Feriados ------------------------------------------------------------
+
+  /// Marca (ou atualiza) um feriado ou evento ([kind]). Cada compromisso fixo do dia
+  /// acontece ou não conforme [hidesFixed] (regra geral) e [exceptions] (os que
+  /// fazem o contrário). Desmarcar o dia devolve os compromissos.
+  void setHoliday(
+    DateTime day, {
+    String name = '',
+    bool hidesFixed = true,
+    List<String> exceptions = const [],
+    DayKind kind = DayKind.holiday,
+  }) {
+    final key = dateKey(day);
+    final holiday = Holiday(
+      name: name.trim(),
+      hidesFixed: hidesFixed,
+      exceptions: exceptions,
+      kind: kind,
+    );
+    final affected = state.rules
+        .where((r) => r.weekdays.contains(day.weekday) && !r.skipDates.contains(key))
+        .toList();
+    final hidden = affected.where((r) => holiday.hides(r.id)).toList();
+    final String effect;
+    if (affected.isEmpty) {
+      effect = '';
+    } else if (hidden.length == affected.length) {
+      effect = 'Os compromissos fixos desse dia não acontecem.';
+    } else if (hidden.isEmpty) {
+      effect = 'Os compromissos fixos desse dia continuam.';
+    } else {
+      effect = '${hidden.length} de ${affected.length} compromissos fixos não acontecem: '
+          '${hidden.map((r) => r.title).join(', ')}.';
+    }
+    _applyHolidays(
+      {...state.holidays, key: holiday},
+      'Marquei ${dayDate(day)} como ${kind == DayKind.event ? 'evento' : 'feriado'}'
+      '${holiday.name.isEmpty ? '' : ' "${holiday.name}"'}. $effect',
+    );
+  }
+
+  void removeHoliday(DateTime day) {
+    final key = dateKey(day);
+    if (!state.holidays.containsKey(key)) return;
+    _applyHolidays(
+      {...state.holidays}..remove(key),
+      'Tirei o feriado de ${dayDate(day)}.',
+    );
+  }
+
+  void _applyHolidays(Map<String, Holiday> holidays, String note) {
+    final dyn = state.blocks.where((b) => b.layer == Layer.dynamic).toList();
+    state = state.copyWith(
+      holidays: holidays,
+      blocks: [..._expand(state.rules, holidays), ...dyn],
+      clearPending: true,
+    );
+    _say(note.trim());
   }
 
   // ---- Rotina fixa (cadastro manual; o chat nunca altera estes blocos) ---------
@@ -203,7 +287,7 @@ class CalendarController extends Notifier<CalendarState> {
 
   void _applyRules(List<FixedRule> rules, String note) {
     final dyn = state.blocks.where((b) => b.layer == Layer.dynamic).toList();
-    final fixed = expandRules(rules, _baseMonday, _backWeeks, _aheadWeeks);
+    final fixed = _expand(rules);
     final now = DateTime.now();
     final clashes = dyn
         .where((d) => d.end.isAfter(now) && fixed.any((f) => f.overlaps(d)))
@@ -307,7 +391,7 @@ class CalendarController extends Notifier<CalendarState> {
       FixedRule(id: 'demo-lab', title: 'Laboratório', weekdays: [2, 4], startMin: 14 * 60, endMin: 16 * 60),
     ];
     final dyn = state.blocks.where((b) => b.layer == Layer.dynamic).toList();
-    final fixed = expandRules(rules, _baseMonday, _backWeeks, _aheadWeeks);
+    final fixed = _expand(rules);
     state = state.copyWith(
       rules: rules,
       blocks: [...fixed, ...dyn, if (!dyn.any((b) => b.id == 'dy-fis')) ..._seedDynamic(_today)],
@@ -335,7 +419,13 @@ class CalendarController extends Notifier<CalendarState> {
     final snap = _undoStack.removeLast();
     _skipBlocks = snap.blocks;
     _skipRules = snap.rules;
-    state = state.copyWith(blocks: snap.blocks, rules: snap.rules, clearPending: true);
+    _skipHolidays = snap.holidays;
+    state = state.copyWith(
+      blocks: snap.blocks,
+      rules: snap.rules,
+      holidays: snap.holidays,
+      clearPending: true,
+    );
     _say('Desfeito. Voltei a agenda ao estado anterior.');
   }
 
@@ -365,7 +455,7 @@ class CalendarController extends Notifier<CalendarState> {
       final dyn = state.blocks.where((x) => x.layer == Layer.dynamic).toList();
       state = state.copyWith(
         rules: rules,
-        blocks: [...expandRules(rules, _baseMonday, _backWeeks, _aheadWeeks), ...dyn],
+        blocks: [..._expand(rules), ...dyn],
       );
     }
     _say(switch (status) {

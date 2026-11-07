@@ -54,6 +54,12 @@ Tocar num bloco do calendário abre um menu com:
 **Reencaixe, uma atividade por vez:** quando você cadastra uma aula que passa a colidir com atividades extras, ou marca uma atividade extra como **Não realizada**, o app propõe até 3 janelas livres para cada uma, em ordem, e você escolhe uma, escreve outro horário ou mantém como está. Aula da rotina fixa não realizada não é reencaixada.
 - **Remover** (atividade dinâmica) ou **Cancelar só este dia** (rotina fixa). Para a rotina fixa, realizada e não realizada valem só para aquela data.
 
+## Feriados e eventos
+
+Toque no **nome do dia**, no cabeçalho do calendário, para marcá-lo como **feriado** ou **evento**, mesmo com semanas de antecedência. Os dois têm cor própria: a coluna do dia fica **âmbar** num feriado e **azul-céu** num evento, e o nome aparece no cabeçalho ("Feriado" ou "Evento", se você não der nome).
+
+O app também pergunta, para cada compromisso fixo daquele dia, se ele **acontece ou não**, com um interruptor por compromisso e atalhos **Nenhum** e **Todos**. Num feriado, a caixa começa com nada acontecendo; num evento, com tudo acontecendo, e você ajusta. O que não acontece some do calendário naquele dia. Tocar de novo permite editar ou remover; desmarcar devolve os compromissos. Atividades extras marcadas no dia continuam. Um compromisso fixo cadastrado depois segue a regra geral que a maioria das suas escolhas indicou, e dá para ajustar abrindo o dia de novo.
+
 ## O que o chat entende hoje
 
 | Ação | Exemplos |
@@ -71,7 +77,7 @@ Os testes em [`test/intent_test.dart`](test/intent_test.dart) e [`test/controlle
 
 | ✅ Implementado | 🔜 Planejado |
 |---|---|
-| Calendário duplo com atualização em tempo real | Feriados marcados no cabeçalho do dia |
+| Calendário duplo com atualização em tempo real | Marcar feriado ou evento pelo chat |
 | Chat de comandos com negociação de conflito | Notificações e lembretes |
 | Cadastro da rotina fixa e cancelamento de aula de um dia | Entrada por voz |
 | Remarcar, remover e desfazer | Repetição pelo chat ("de segunda a sexta") |
@@ -79,6 +85,7 @@ Os testes em [`test/intent_test.dart`](test/intent_test.dart) e [`test/controlle
 | Layout de celular: 3 dias, chat compacto, deslizar para navegar | LLM opcional para frases livres |
 | Tocar num bloco: realizada, não realizada, remarcar, remover | |
 | Reencaixe, uma atividade por vez, com opções de horário | |
+| Feriados e eventos: tocar no nome do dia, coluna colorida, escolha por compromisso | |
 | Testes do motor, do parser, da persistência, de conversas e de layout | |
 
 **Limitações conhecidas**
