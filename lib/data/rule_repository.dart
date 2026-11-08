@@ -43,10 +43,7 @@ class FileRuleRepository implements RuleRepository {
   Future<List<FixedRule>?> load() async {
     if (!await _file.exists()) return null;
     try {
-      final data = jsonDecode(await _file.readAsString()) as Map<String, dynamic>;
-      return [
-        for (final j in data['rules'] as List) FixedRule.fromJson(j as Map<String, dynamic>),
-      ];
+      return decodeRules(await _file.readAsString());
     } catch (e) {
       debugPrint('routine.json ilegível, criando backup: $e');
       try {
@@ -58,10 +55,7 @@ class FileRuleRepository implements RuleRepository {
 
   @override
   Future<void> save(List<FixedRule> rules) {
-    final snapshot = jsonEncode({
-      'version': 1,
-      'rules': [for (final r in rules) r.toJson()],
-    });
+    final snapshot = encodeRules(rules);
     _queue = _queue.then((_) => _write(snapshot));
     return _queue;
   }
@@ -82,3 +76,16 @@ final ruleRepositoryProvider =
 
 /// Regras carregadas do disco antes do runApp (null = primeira vez).
 final initialRulesProvider = Provider<List<FixedRule>?>((ref) => null);
+
+/// Formato do routine.json (também usado no armazenamento do navegador).
+String encodeRules(List<FixedRule> rules) => jsonEncode({
+      'version': 1,
+      'rules': [for (final r in rules) r.toJson()],
+    });
+
+List<FixedRule> decodeRules(String text) {
+  final data = jsonDecode(text) as Map<String, dynamic>;
+  return [
+    for (final j in data['rules'] as List) FixedRule.fromJson(j as Map<String, dynamic>),
+  ];
+}

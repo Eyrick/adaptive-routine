@@ -44,11 +44,7 @@ class FileHolidayRepository implements HolidayRepository {
   Future<Map<String, Holiday>?> load() async {
     if (!await _file.exists()) return null;
     try {
-      final data = jsonDecode(await _file.readAsString()) as Map<String, dynamic>;
-      return {
-        for (final e in (data['holidays'] as Map).entries)
-          e.key as String: Holiday.fromJson((e.value as Map).cast<String, dynamic>()),
-      };
+      return decodeHolidays(await _file.readAsString());
     } catch (e) {
       debugPrint('holidays.json ilegível, criando backup: $e');
       try {
@@ -60,10 +56,7 @@ class FileHolidayRepository implements HolidayRepository {
 
   @override
   Future<void> save(Map<String, Holiday> holidays) {
-    final snapshot = jsonEncode({
-      'version': 1,
-      'holidays': {for (final e in holidays.entries) e.key: e.value.toJson()},
-    });
+    final snapshot = encodeHolidays(holidays);
     _queue = _queue.then((_) => _write(snapshot));
     return _queue;
   }
@@ -84,3 +77,17 @@ final holidayRepositoryProvider =
 
 /// Feriados carregados do disco antes do runApp (null = primeira vez).
 final initialHolidaysProvider = Provider<Map<String, Holiday>?>((ref) => null);
+
+/// Formato do holidays.json (também usado no armazenamento do navegador).
+String encodeHolidays(Map<String, Holiday> holidays) => jsonEncode({
+      'version': 1,
+      'holidays': {for (final e in holidays.entries) e.key: e.value.toJson()},
+    });
+
+Map<String, Holiday> decodeHolidays(String text) {
+  final data = jsonDecode(text) as Map<String, dynamic>;
+  return {
+    for (final e in (data['holidays'] as Map).entries)
+      e.key as String: Holiday.fromJson((e.value as Map).cast<String, dynamic>()),
+  };
+}

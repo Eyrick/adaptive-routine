@@ -77,7 +77,7 @@ Os testes em [`test/intent_test.dart`](test/intent_test.dart) e [`test/controlle
 
 | ✅ Implementado | 🔜 Planejado |
 |---|---|
-| Calendário duplo com atualização em tempo real | Marcar feriado ou evento pelo chat |
+| Calendário duplo com atualização em tempo real | Sincronização entre aparelhos (conta e nuvem) |
 | Chat de comandos com negociação de conflito | Notificações e lembretes |
 | Cadastro da rotina fixa e cancelamento de aula de um dia | Entrada por voz |
 | Remarcar, remover e desfazer | Repetição pelo chat ("de segunda a sexta") |
@@ -86,11 +86,12 @@ Os testes em [`test/intent_test.dart`](test/intent_test.dart) e [`test/controlle
 | Tocar num bloco: realizada, não realizada, remarcar, remover | |
 | Reencaixe, uma atividade por vez, com opções de horário | |
 | Feriados e eventos: tocar no nome do dia, coluna colorida, escolha por compromisso | |
+| App web instalável (PWA) no iPhone e no Android, em teste | |
 | Testes do motor, do parser, da persistência, de conversas e de layout | |
 
 **Limitações conhecidas**
 - Testado apenas no **Windows**. O layout de celular existe e tem testes de widget, mas ainda não foi validado visualmente em aparelho; as pastas de Android, iOS, macOS e Linux existem, mas o app ainda não foi rodado nelas.
-- Sem notificações e sem sincronização entre aparelhos.
+- Sem notificações e **sem sincronização entre aparelhos ainda**: cada instalação (Windows, Android, app web) tem a sua própria agenda. A sincronização é a próxima etapa.
 - A rotina fixa é semanal; exceções são apenas cancelar ou remarcar um dia.
 
 ## Arquitetura
@@ -121,6 +122,10 @@ Decisões que valem destacar:
 - **Local-first:** tudo roda e é salvo no aparelho. Sem servidor.
 - **Escrita atômica** dos arquivos (temporário + rename), com backup `.corrupt` se o arquivo estiver ilegível.
 - **Testes de conversa** com `ProviderContainer`, que simulam diálogos completos e já pegaram um bug real de ids duplicados no Windows.
+
+## Usar no celular pelo navegador (PWA)
+
+O app também roda como **app web instalável**: no iPhone, abra o endereço no Safari e use *Compartilhar > Adicionar à Tela de Início*; no Android, instale pelo Chrome. Os dados ficam no próprio aparelho. O passo a passo de publicação e instalação está em [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Como rodar
 

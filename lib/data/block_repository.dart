@@ -43,10 +43,7 @@ class FileBlockRepository implements BlockRepository {
   Future<List<TimeBlock>?> load() async {
     if (!await _file.exists()) return null;
     try {
-      final data = jsonDecode(await _file.readAsString()) as Map<String, dynamic>;
-      return [
-        for (final j in data['blocks'] as List) TimeBlock.fromJson(j as Map<String, dynamic>),
-      ];
+      return decodeBlocks(await _file.readAsString());
     } catch (e) {
       debugPrint('schedule.json ilegível, criando backup: $e');
       try {
@@ -58,10 +55,7 @@ class FileBlockRepository implements BlockRepository {
 
   @override
   Future<void> save(List<TimeBlock> blocks) {
-    final snapshot = jsonEncode({
-      'version': 1,
-      'blocks': [for (final b in blocks) b.toJson()],
-    });
+    final snapshot = encodeBlocks(blocks);
     _queue = _queue.then((_) => _write(snapshot));
     return _queue;
   }
@@ -83,3 +77,16 @@ final blockRepositoryProvider =
 
 /// Blocos dinâmicos carregados do disco antes do runApp (null = primeira vez).
 final initialBlocksProvider = Provider<List<TimeBlock>?>((ref) => null);
+
+/// Formato do schedule.json (também usado no armazenamento do navegador).
+String encodeBlocks(List<TimeBlock> blocks) => jsonEncode({
+      'version': 1,
+      'blocks': [for (final b in blocks) b.toJson()],
+    });
+
+List<TimeBlock> decodeBlocks(String text) {
+  final data = jsonDecode(text) as Map<String, dynamic>;
+  return [
+    for (final j in data['blocks'] as List) TimeBlock.fromJson(j as Map<String, dynamic>),
+  ];
+}

@@ -259,3 +259,17 @@ sequenceDiagram
 
 - A semana exibida começa no **domingo** (Dom ... Sáb), como nos calendários usados no Brasil. A regra fica em um só lugar, `lib/domain/week.dart` (`kWeekStart`); para voltar a Seg ... Dom basta trocar a constante para `DateTime.monday`.
 - Nada mais assume uma semana começando na segunda: `expandRules` e o interpretador de comandos calculam a posição de cada dia da semana a partir do início de semana recebido, e os botões de dia da tela Rotina fixa seguem a mesma ordem.
+
+## 20. App web (PWA) e plano de sincronização
+
+**Fase 1, feita: app web instalável.**
+- No navegador não há arquivos em disco. Com `kIsWeb`, o app usa `PrefsBlockRepository`, `PrefsRuleRepository` e `PrefsHolidayRepository` (`prefs_repositories.dart`), sobre `SharedPreferences` (localStorage). O **formato JSON é o mesmo** dos arquivos: os codecs (`encodeBlocks`/`decodeBlocks` etc.) são compartilhados, e dado ilegível vira uma cópia `.corrupt`.
+- `web/` traz `index.html` (metas de iPhone para abrir em tela cheia), `manifest.json`, ícones (inclusive `apple-touch-icon`) e `_headers` (sem cache para `index.html`, service worker e manifesto, para as atualizações chegarem). Publicação: `docs/DEPLOY.md`.
+- O app instalado na tela inicial do iPhone e o Safari têm armazenamento separado; por isso, o uso deve ser sempre pelo ícone.
+
+**Fase 2, planejada: sincronização (Supabase).**
+- Cada aparelho continua com a sua cópia local (funciona offline). A nuvem é a cópia compartilhada, com login por e-mail e a mesma conta em todos os aparelhos.
+- Tabelas `blocks`, `rules` e `holidays`: `user_id`, `id` (ou data, nos feriados), `data jsonb`, `updated_at`, `deleted` (marca de exclusão). Regras de acesso por linha (RLS): `user_id = auth.uid()`.
+- Sincronização por item, com a edição mais recente vencendo: envia o que mudou, baixa o que mudou desde o último ponto, ao abrir, ao voltar para o app e após cada mudança. Precisa de `updatedAt` em blocos, regras e feriados, e de uma marca de exclusão em vez de remover.
+- Mudanças vindas da nuvem não entram na pilha de "desfazer" e não disparam novo envio.
+- Riscos conhecidos: o plano grátis pode pausar o projeto por inatividade; as chaves públicas ficam no app, então a segurança depende das regras de acesso por linha.
