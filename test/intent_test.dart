@@ -155,4 +155,10 @@ void main() {
     expect(parseRemove('remover sáb', now, sunWs).day, DateTime(2026, 11, 7));
     expect(parseMove('remarcar x para quinta 10h', now, sunWs).targetDay, DateTime(2026, 11, 5));
   });
+
+  test('comando de desempenho', () {
+    expect(isPerfCommand('desempenho'), isTrue);
+    expect(isPerfCommand('  Desempenho '), isTrue);
+    expect(isPerfCommand('reunião hoje 17h'), isFalse);
+  });
 }

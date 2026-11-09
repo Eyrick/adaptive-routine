@@ -407,3 +407,6 @@ List<String> splitEvents(String text) {
   }
   return parts;
 }
+
+/// "desempenho": liga ou desliga o medidor de quadros.
+bool isPerfCommand(String text) => normalizeText(text).trim() == 'desempenho';

@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/frame_stats.dart';
 import 'data/block_repository.dart';
 import 'data/holiday_repository.dart';
 import 'data/prefs_repositories.dart';
@@ -143,6 +144,7 @@ class AdaptiveRoutineApp extends StatelessWidget {
         locale: const Locale('pt', 'BR'),
         supportedLocales: const [Locale('pt', 'BR')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        builder: (context, child) => FrameStatsOverlay(child: child ?? const SizedBox.shrink()),
         home: const HomePage(),
       );
 }

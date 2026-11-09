@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/frame_stats.dart';
 import '../../data/block_repository.dart';
 import '../../data/holiday_repository.dart';
 import '../../data/rule_repository.dart';
@@ -317,6 +318,13 @@ class CalendarController extends Notifier<CalendarState> {
       _say(n == 0
           ? 'Não há atividades para limpar.'
           : 'Removi $n atividade(s) do calendário dinâmico. A base fixa não foi alterada.');
+      return;
+    }
+    if (isPerfCommand(t)) {
+      showFrameStats.value = !showFrameStats.value;
+      _say(showFrameStats.value
+          ? 'Medidor de desempenho ligado (canto superior esquerdo). Role o calendário ou digite e veja os números. Digite "desempenho" de novo para desligar.'
+          : 'Medidor de desempenho desligado.');
       return;
     }
     if (isDemoCommand(t)) {

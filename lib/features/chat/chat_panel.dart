@@ -179,7 +179,7 @@ class _ChatDockState extends ConsumerState<ChatDock> {
 
     return Material(
       color: cs.surfaceContainer,
-      elevation: 3,
+      shape: Border(top: BorderSide(color: cs.outlineVariant.withOpacity(.6))),
       child: SafeArea(
         top: false,
         child: Padding(

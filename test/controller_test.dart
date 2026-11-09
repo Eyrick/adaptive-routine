@@ -1,3 +1,4 @@
+import 'package:adaptive_routine/core/frame_stats.dart';
 import 'package:adaptive_routine/data/holiday_repository.dart';
 import 'package:adaptive_routine/data/rule_repository.dart';
 import 'package:adaptive_routine/domain/fixed_rule.dart';
@@ -411,5 +412,17 @@ void main() {
     ctl.removeHoliday(tomorrow);
     await tick();
     expect(fixedTomorrow(), ['Aula A', 'Aula B']);
+  });
+
+  test('"desempenho" liga e desliga o medidor', () async {
+    final c = make();
+    final ctl = c.read(calendarProvider.notifier);
+    addTearDown(() => showFrameStats.value = false);
+
+    expect(showFrameStats.value, isFalse);
+    ctl.submit('desempenho');
+    expect(showFrameStats.value, isTrue);
+    ctl.submit('desempenho');
+    expect(showFrameStats.value, isFalse);
   });
 }

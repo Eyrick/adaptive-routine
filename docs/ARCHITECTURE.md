@@ -273,3 +273,12 @@ sequenceDiagram
 - Sincronização por item, com a edição mais recente vencendo: envia o que mudou, baixa o que mudou desde o último ponto, ao abrir, ao voltar para o app e após cada mudança. Precisa de `updatedAt` em blocos, regras e feriados, e de uma marca de exclusão em vez de remover.
 - Mudanças vindas da nuvem não entram na pilha de "desfazer" e não disparam novo envio.
 - Riscos conhecidos: o plano grátis pode pausar o projeto por inatividade; as chaves públicas ficam no app, então a segurança depende das regras de acesso por linha.
+
+## 21. Desempenho no app web (iPhone)
+
+- O Flutter web no iPhone tem um teto de velocidade: todos os navegadores do iOS usam WebKit, o gráfico (CanvasKit) é mais lento nele, a versão em WebAssembly não roda no iOS e o renderizador HTML foi removido do Flutter.
+- Medição antes de otimizar: o comando `desempenho` liga `FrameStatsOverlay` (`lib/core/frame_stats.dart`), com quadros por segundo, média, pior e quadros lentos, lidos de `FrameTiming`.
+- Otimizações aplicadas no calendário: o `DualCalendarView` só reconstrói quando blocos, dia/semana, feriados ou a pré-visualização mudam (`select`), e não a cada mensagem do chat; as linhas da grade são desenhadas por um único `CustomPainter` por coluna; foi removido o fade-in dos blocos (`Opacity` cria camadas extras); o `ChatDock` não usa mais sombra.
+- Carregamento: tela de carregamento em HTML enquanto o motor inicia, e `--no-web-resources-cdn` no build.
+- Experimento: `?dpr=2` limita a resolução de desenho (`devicePixelRatio`) para pintar menos pixels. Decidiremos pelos números medidos.
+- Se o teto continuar baixo, o caminho para um app fluido é o app nativo no iPhone (build na nuvem com GitHub Actions e instalação com Sideloadly).

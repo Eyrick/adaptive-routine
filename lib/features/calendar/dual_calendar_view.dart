@@ -33,7 +33,15 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
 
   @override
   Widget build(BuildContext context) {
-    final s = ref.watch(calendarProvider);
+    // Só reconstrói o calendário quando algo que ele mostra muda (e não a cada
+    // mensagem do chat).
+    final s = ref.watch(calendarProvider.select((st) => (
+          blocks: st.blocks,
+          weekStart: st.weekStart,
+          focusDay: st.focusDay,
+          holidays: st.holidays,
+          ghost: st.pending?.incoming,
+        )));
     final ctl = ref.read(calendarProvider.notifier);
     final cs = Theme.of(context).colorScheme;
 
@@ -52,7 +60,7 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
 
       // A grade cresce para caber aulas cedo/tarde (ex.: 7h30 ou até 22h30).
       var startH = 8, endH = 22;
-      final ghost = s.pending?.incoming;
+      final ghost = s.ghost;
       for (final b in [...visible, if (ghost != null && inRange(ghost.start)) ghost]) {
         startH = math.min(startH, b.start.hour);
         final eh = sameDay(b.start, b.end) ? (b.end.minute > 0 ? b.end.hour + 1 : b.end.hour) : 24;
@@ -211,12 +219,16 @@ class _DayColumn extends StatelessWidget {
         border: Border(left: BorderSide(color: cs.outlineVariant.withOpacity(.5))),
       ),
       child: Stack(children: [
-        for (var h = 0; h < endH - startH; h++)
-          Positioned(
-              top: h * _hourH,
-              left: 0,
-              right: 0,
-              child: Divider(height: 1, color: cs.outlineVariant.withOpacity(.4))),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: _GridPainter(
+                hours: endH - startH,
+                color: cs.outlineVariant.withOpacity(.4),
+              ),
+            ),
+          ),
+        ),
         for (final b in blocks)
           AnimatedPositioned(
             key: ValueKey(b.id),
@@ -226,12 +238,7 @@ class _DayColumn extends StatelessWidget {
             height: _geo(b).height,
             left: 2,
             right: 2,
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: 1),
-              duration: const Duration(milliseconds: 250),
-              builder: (_, v, child) => Opacity(opacity: v, child: child),
-              child: _BlockTile(block: b, onTap: () => onTapBlock(b)),
-            ),
+            child: _BlockTile(block: b, onTap: () => onTapBlock(b)),
           ),
         if (ghost != null)
           Positioned(
@@ -253,6 +260,27 @@ class _DayColumn extends StatelessWidget {
       ]),
     );
   }
+}
+
+/// Linhas horizontais da grade (uma por hora), desenhadas de uma vez.
+class _GridPainter extends CustomPainter {
+  _GridPainter({required this.hours, required this.color});
+  final int hours;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    for (var i = 0; i < hours; i++) {
+      final y = i * _hourH + 0.5;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_GridPainter old) => old.hours != hours || old.color != color;
 }
 
 class _BlockTile extends StatelessWidget {
