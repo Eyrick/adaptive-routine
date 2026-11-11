@@ -419,6 +419,22 @@ class CalendarController extends Notifier<CalendarState> {
         return r.words.every(t.contains);
       }).toList();
 
+  /// Troca os dados pelos que vieram da nuvem (sincronização). Não entra na
+  /// pilha de "desfazer": o histórico anterior deixa de valer.
+  void loadSnapshot(
+    List<TimeBlock> dynamicBlocks,
+    List<FixedRule> rules,
+    Map<String, Holiday> holidays,
+  ) {
+    final blocks = [..._expand(rules, holidays), ...dynamicBlocks];
+    _skipBlocks = blocks;
+    _skipRules = rules;
+    _skipHolidays = holidays;
+    state = state.copyWith(blocks: blocks, rules: rules, holidays: holidays, clearPending: true);
+    _undoStack.clear();
+    _say('Agenda atualizada a partir da nuvem.');
+  }
+
   void _undo() {
     if (_undoStack.isEmpty) {
       _say('Não há nada para desfazer.');

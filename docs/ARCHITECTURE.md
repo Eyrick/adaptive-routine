@@ -282,3 +282,17 @@ sequenceDiagram
 - Carregamento: tela de carregamento em HTML enquanto o motor inicia, e `--no-web-resources-cdn` no build.
 - Experimento: `?dpr=2` limita a resolução de desenho (`devicePixelRatio`) para pintar menos pixels. Decidiremos pelos números medidos.
 - Se o teto continuar baixo, o caminho para um app fluido é o app nativo no iPhone (build na nuvem com GitHub Actions e instalação com Sideloadly).
+
+## 22. Sincronização (Fase 2, implementada)
+
+Refina o plano da seção 20: em vez de mesclar item por item (que exigiria data de modificação e marca de exclusão em tudo), o primeiro passo sincroniza **a agenda inteira como um retrato com versão**. É mais simples e mais seguro de manter correto.
+
+- **Nuvem:** tabela `user_state` (`user_id`, `data jsonb`, `version`, `updated_at`, `device`), uma linha por conta, com segurança por linha (`auth.uid() = user_id`). Login por e-mail e senha.
+- **Retrato (`Snapshot`):** atividades dinâmicas, regras da rotina fixa e feriados. Os blocos da rotina fixa não entram, pois são gerados das regras. O **texto canônico** (chaves em ordem, listas ordenadas por id) permite comparar duas agendas por igualdade.
+- **Memória local da última sincronização:** versão da nuvem e texto canônico, em `SharedPreferences`, por conta.
+- **Regras (`SyncService._syncOnce`):** nuvem vazia sobe a agenda local; aparelho "de fábrica" (`Snapshot.isPristine`) adota a da nuvem; mudou só aqui, envia com atualização condicional (`update ... where version = base`); mudou só na nuvem, adota; mudou nos dois, **conflito** e o usuário escolhe. Se a atualização condicional falhar, confere de novo antes de enviar.
+- **Gatilhos:** ao abrir, ao voltar para o app, a cada 30 s e 2 s depois de cada mudança local.
+- **Fronteira testável:** `SyncBackend` é uma interface; `SupabaseBackend` é a implementação real e os testes (`test/sync_test.dart`) usam uma nuvem de mentira, cobrindo envio, adoção, conflito nas duas direções e aparelho novo.
+- **No controlador:** `loadSnapshot` aplica a agenda da nuvem sem entrar no "desfazer" (e zera esse histórico).
+- **Configuração:** `--dart-define-from-file=env.json` (`SUPABASE_URL`, `SUPABASE_ANON_KEY`). Sem elas, o app funciona só local.
+- **Limites conhecidos:** edição simultânea nos dois aparelhos vira conflito (a agenda inteira vence ou perde); o plano grátis do Supabase pode pausar por inatividade; ainda não há sincronização em tempo real (apenas a cada 30 s).

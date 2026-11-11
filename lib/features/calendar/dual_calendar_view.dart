@@ -7,6 +7,8 @@ import '../../domain/fixed_rule.dart';
 import '../../domain/holiday.dart';
 import '../../domain/models.dart';
 import '../../domain/scheduling.dart';
+import '../../sync/sync_screen.dart';
+import '../../sync/sync_service.dart';
 import '../routine/routine_screen.dart';
 import 'block_sheet.dart';
 import 'block_style.dart';
@@ -100,6 +102,7 @@ class _DualCalendarViewState extends ConsumerState<DualCalendarView> {
                           label: const Text('Rotina fixa'),
                           onPressed: _openRoutine,
                         ),
+                  const _SyncButton(),
                 ]),
               ),
             ),
@@ -381,6 +384,34 @@ class _DayHeader extends StatelessWidget {
           ]),
         ),
       ),
+    );
+  }
+}
+
+/// Ícone da nuvem na barra: mostra a situação da sincronização e abre a tela
+/// de conta. Fica escondido quando o app não foi configurado para sincronizar.
+class _SyncButton extends ConsumerWidget {
+  const _SyncButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(syncProvider.select((s) => s.status));
+    if (status == SyncStatus.notConfigured) return const SizedBox.shrink();
+    final cs = Theme.of(context).colorScheme;
+    final (IconData icon, Color? color) = switch (status) {
+      SyncStatus.idle => (Icons.cloud_done_outlined, null),
+      SyncStatus.syncing => (Icons.sync, null),
+      SyncStatus.signedOut => (Icons.cloud_off_outlined, null),
+      SyncStatus.offline => (Icons.cloud_off, cs.outline),
+      SyncStatus.conflict => (Icons.warning_amber_rounded, cs.error),
+      SyncStatus.error => (Icons.error_outline, cs.error),
+      SyncStatus.notConfigured => (Icons.cloud_off_outlined, null),
+    };
+    return IconButton(
+      tooltip: 'Conta e sincronização',
+      icon: Icon(icon, color: color),
+      onPressed: () => Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const SyncScreen())),
     );
   }
 }

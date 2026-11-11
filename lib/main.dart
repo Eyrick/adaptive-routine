@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/frame_stats.dart';
 import 'data/block_repository.dart';
@@ -14,6 +15,10 @@ import 'domain/holiday.dart';
 import 'domain/models.dart';
 import 'features/calendar/dual_calendar_view.dart';
 import 'features/chat/chat_panel.dart';
+import 'sync/supabase_backend.dart';
+import 'sync/sync_backend.dart';
+import 'sync/sync_config.dart';
+import 'sync/sync_service.dart';
 
 /// Repositórios e dados já carregados, para o app abrir sem esperar o disco.
 class _Storage {
@@ -112,8 +117,21 @@ Future<_Storage> _openStorage() async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final st = await _openStorage();
+
+  // Sincronização entre aparelhos (opcional: só se o app foi compilado com o env.json).
+  SyncBackend? backend;
+  if (syncConfigured) {
+    try {
+      await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+      backend = SupabaseBackend(Supabase.instance.client);
+    } catch (e) {
+      debugPrint('Sincronização indisponível: $e');
+    }
+  }
+
   runApp(ProviderScope(
     overrides: [
+      syncBackendProvider.overrideWithValue(backend),
       blockRepositoryProvider.overrideWithValue(st.blocks),
       initialBlocksProvider.overrideWithValue(st.savedBlocks),
       ruleRepositoryProvider.overrideWithValue(st.rules),
@@ -149,11 +167,12 @@ class AdaptiveRoutineApp extends StatelessWidget {
       );
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.read(syncProvider); // liga a sincronização (se estiver configurada)
     return LayoutBuilder(builder: (context, c) {
       if (c.maxWidth >= 900) {
         return Scaffold(
