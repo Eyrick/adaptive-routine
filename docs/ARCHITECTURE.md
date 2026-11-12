@@ -280,8 +280,8 @@ sequenceDiagram
 - Medição antes de otimizar: o comando `desempenho` liga `FrameStatsOverlay` (`lib/core/frame_stats.dart`), com quadros por segundo, média, pior e quadros lentos, lidos de `FrameTiming`.
 - Otimizações aplicadas no calendário: o `DualCalendarView` só reconstrói quando blocos, dia/semana, feriados ou a pré-visualização mudam (`select`), e não a cada mensagem do chat; as linhas da grade são desenhadas por um único `CustomPainter` por coluna; foi removido o fade-in dos blocos (`Opacity` cria camadas extras); o `ChatDock` não usa mais sombra.
 - Carregamento: tela de carregamento em HTML enquanto o motor inicia, e `--no-web-resources-cdn` no build.
-- Experimento: `?dpr=2` limita a resolução de desenho (`devicePixelRatio`) para pintar menos pixels. Decidiremos pelos números medidos.
-- Se o teto continuar baixo, o caminho para um app fluido é o app nativo no iPhone (build na nuvem com GitHub Actions e instalação com Sideloadly).
+- Experimento de limitar a resolução de desenho (`?dpr=2`, `?dpr=1.5`): não mudou muito o resultado e foi retirado.
+- **Resultado:** depois dessas otimizações, o app web ficou fluido no iPhone. O app nativo no iPhone (build na nuvem com GitHub Actions e instalação com Sideloadly) fica **adiado**; se o desempenho voltar a ser problema, é o caminho.
 
 ## 22. Sincronização (Fase 2, implementada)
 

@@ -62,18 +62,10 @@ Depois de publicar uma versão nova, feche o app por completo (no iPhone, desliz
 - **Desempenho no iPhone:** o Flutter web tem um teto de velocidade no Safari (veja a seção 6).
 - **Tela branca ou erro ao abrir:** feche e reabra; se persistir, no iPhone vá em Ajustes, Safari, Avançado, Dados de Sites, apague o do seu endereço e instale de novo. Se continuar, me mande um print.
 
-## 6. Medir o desempenho no iPhone
+## 6. Desempenho no iPhone
 
-O app tem um **medidor de quadros**. Digite `desempenho` no chat para ligar (canto superior esquerdo) e de novo para desligar. Ele mostra, a cada segundo: quantos quadros foram desenhados, a duração média, a pior e quantos passaram de 16,7 ms (o limite para 60 quadros por segundo). Se a tela está parada, aparece "sem quadros", e isso é normal.
+O app web ficou **fluido no iPhone** depois das otimizações (menos redesenho no calendário, sem sombra e sem fade-in, tela de carregamento). Um teste de limitar a resolução de desenho (`?dpr=2`, `?dpr=1.5`) não mudou muito o resultado e foi retirado.
 
-**Roteiro de teste** (sempre no **Safari**, numa aba normal, não no app instalado):
-
-1. Abra `https://SEU-ENDERECO.pages.dev/?dpr=0` (resolução normal).
-2. Digite `desempenho`. Depois, durante uns 10 segundos, role o calendário para cima e para baixo e deslize para o lado. Tire um print com os números.
-3. Digite uma frase no chat e tire outro print durante a digitação.
-4. Repita com `?dpr=2` e depois com `?dpr=1.5`, que limitam a resolução de desenho. O valor fica salvo no navegador. Para voltar ao normal, use `?dpr=0`.
-5. Compare: números menores de "média" e "pior" e mais "quadros/s" durante a rolagem indicam melhora. Observe também se o texto ficou menos nítido.
-
-**Teste da galeria:** abra `gallery.flutter.dev` no Safari do iPhone. Se ela também travar, o limite é do motor do Flutter no iPhone, e não do nosso app.
+Se algum dia voltar a travar, o app tem um **medidor de quadros**: digite `desempenho` no chat para ligar (canto superior esquerdo) e de novo para desligar. Ele mostra, a cada segundo, quantos quadros foram desenhados, a duração média, a pior e quantos passaram de 16,7 ms (o limite para 60 quadros por segundo). Com a tela parada, aparece "sem quadros", e isso é normal.
 
 Depois de publicar uma versão nova, abra o endereço **duas vezes** para o Safari trocar para ela.

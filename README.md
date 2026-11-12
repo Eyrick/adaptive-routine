@@ -77,18 +77,18 @@ Os testes em [`test/intent_test.dart`](test/intent_test.dart) e [`test/controlle
 
 | ✅ Implementado | 🔜 Planejado |
 |---|---|
-| Calendário duplo com atualização em tempo real | App nativo no iPhone (mais fluido que o app web) |
-| Chat de comandos com negociação de conflito | Notificações e lembretes |
-| Cadastro da rotina fixa e cancelamento de aula de um dia | Entrada por voz |
-| Remarcar, remover e desfazer | Repetição pelo chat ("de segunda a sexta") |
+| Calendário duplo com atualização em tempo real | Notificações e lembretes |
+| Chat de comandos com negociação de conflito | Frases ditadas (horários falados) e "de segunda a sexta" pelo chat |
+| Cadastro da rotina fixa e cancelamento de aula de um dia | Marcar feriado ou evento pelo chat |
+| Remarcar, remover e desfazer | Configurações (início da semana, horário ativo, tema) |
 | Salvamento local (JSON, escrita atômica) | Exportar e importar a agenda |
 | Layout de celular: 3 dias, chat compacto, deslizar para navegar | LLM opcional para frases livres |
 | Tocar num bloco: realizada, não realizada, remarcar, remover | |
 | Reencaixe, uma atividade por vez, com opções de horário | |
 | Feriados e eventos: tocar no nome do dia, coluna colorida, escolha por compromisso | |
-| App web instalável (PWA) no iPhone e no Android | |
-| Sincronização entre aparelhos (Supabase), em teste | |
-| Testes do motor, do parser, da persistência, de conversas e de layout | |
+| App web instalável (PWA), fluido no iPhone e no Android | |
+| Sincronização entre aparelhos (Supabase) | |
+| Testes do motor, do parser, da persistência, de conversas, de layout e de sincronização | |
 
 **Limitações conhecidas**
 - Testado apenas no **Windows**. O layout de celular existe e tem testes de widget, mas ainda não foi validado visualmente em aparelho; as pastas de Android, iOS, macOS e Linux existem, mas o app ainda não foi rodado nelas.

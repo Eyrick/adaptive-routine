@@ -20,9 +20,29 @@
   <title>Adaptive Routine</title>
   <style>
     html, body { margin: 0; background: #16161D; }
+    /* Tela de carregamento: aparece na hora, enquanto o motor do Flutter inicia. */
+    #splash {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #16161D; color: #9A9AB0;
+      font: 14px -apple-system, system-ui, sans-serif;
+    }
+    #splash img { width: 96px; height: 96px; border-radius: 22px; margin-bottom: 16px; }
   </style>
 </head>
 <body>
+  <div id="splash">
+    <img src="icons/Icon-192.png" alt="">
+    <div>Carregando…</div>
+  </div>
+
+  <script>
+    // Some com a tela de carregamento quando o app desenha o primeiro quadro.
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('splash');
+      if (s) s.remove();
+    });
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
