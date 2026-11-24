@@ -4,6 +4,7 @@ import 'package:adaptive_routine/data/rule_repository.dart';
 import 'package:adaptive_routine/domain/fixed_rule.dart';
 import 'package:adaptive_routine/domain/models.dart';
 import 'package:adaptive_routine/features/calendar/calendar_controller.dart';
+import 'package:adaptive_routine/notify/notify_service.dart';
 import 'package:adaptive_routine/sync/snapshot.dart';
 import 'package:adaptive_routine/sync/sync_backend.dart';
 import 'package:adaptive_routine/sync/sync_service.dart';
@@ -68,6 +69,23 @@ class FakeBackend implements SyncBackend {
     remote = RemoteState(version: remoteVersion + 1, data: data, device: device);
     return remoteVersion + 1;
   }
+
+  // Notificações: guarda o que o app enviou, para os testes conferirem.
+  List<Map<String, dynamic>> reminders = [];
+  Map<String, dynamic>? subscription;
+
+  @override
+  Future<void> savePushSubscription(Map<String, dynamic> sub, String device) async =>
+      subscription = sub;
+
+  @override
+  Future<void> removePushSubscription(String endpoint) async => subscription = null;
+
+  @override
+  Future<void> replaceReminders(List<Map<String, dynamic>> items) async => reminders = items;
+
+  @override
+  Future<String> sendTestPush() async => 'ok';
 }
 
 const ra = FixedRule(id: 'ra', title: 'Aula', weekdays: [1, 2, 3, 4, 5], startMin: 540, endMin: 600);
@@ -207,5 +225,32 @@ void main() {
 
     expect(c.read(syncProvider).status, SyncStatus.conflict);
     expect(c.read(calendarProvider).rules.single.id, 'ra'); // nada foi trocado sem perguntar
+  });
+
+  test('lembretes: mudar a agenda atualiza os avisos enviados à nuvem', () async {
+    final fb = FakeBackend();
+    final c = boot(fb, rules: const [ra]);
+    final notify = c.read(notifyProvider.notifier);
+
+    c.read(calendarProvider.notifier).submit('dentista amanhã 14h');
+    await notify.syncReminders();
+
+    final titles = fb.reminders.map((r) => r['title']).toList();
+    expect(titles, contains('Dentista'));
+    final dentista = fb.reminders.firstWhere((r) => r['title'] == 'Dentista');
+    expect((dentista['fire_at'] as String).endsWith('Z'), isTrue); // horário UTC
+    expect(dentista['body'], contains('14:00'));
+
+    // remover a atividade tira o aviso na próxima sincronização
+    c.read(calendarProvider.notifier).submit('remover dentista');
+    await notify.syncReminders();
+    expect(fb.reminders.map((r) => r['title']), isNot(contains('Dentista')));
+  });
+
+  test('fora do navegador, as notificações push não se aplicam', () async {
+    final c = boot(FakeBackend());
+    await c.read(notifyProvider.notifier).refresh();
+    // sem VAPID_PUBLIC_KEY no teste: "não configurado"
+    expect(c.read(notifyProvider).status, PushStatus.notConfigured);
   });
 }

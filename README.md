@@ -77,7 +77,7 @@ Os testes em [`test/intent_test.dart`](test/intent_test.dart) e [`test/controlle
 
 | ✅ Implementado | 🔜 Planejado |
 |---|---|
-| Calendário duplo com atualização em tempo real | Notificações e lembretes |
+| Calendário duplo com atualização em tempo real | Notificações no Windows e no Android nativos |
 | Chat de comandos com negociação de conflito | Frases ditadas (horários falados) e "de segunda a sexta" pelo chat |
 | Cadastro da rotina fixa e cancelamento de aula de um dia | Marcar feriado ou evento pelo chat |
 | Remarcar, remover e desfazer | Configurações (início da semana, horário ativo, tema) |
@@ -88,11 +88,12 @@ Os testes em [`test/intent_test.dart`](test/intent_test.dart) e [`test/controlle
 | Feriados e eventos: tocar no nome do dia, coluna colorida, escolha por compromisso | |
 | App web instalável (PWA), fluido no iPhone e no Android | |
 | Sincronização entre aparelhos (Supabase) | |
+| Notificações no app web (aviso 30 min antes e resumo às 21h), em teste | |
 | Testes do motor, do parser, da persistência, de conversas, de layout e de sincronização | |
 
 **Limitações conhecidas**
 - Testado apenas no **Windows**. O layout de celular existe e tem testes de widget, mas ainda não foi validado visualmente em aparelho; as pastas de Android, iOS, macOS e Linux existem, mas o app ainda não foi rodado nelas.
-- Sem notificações. A sincronização entre aparelhos é opcional (precisa de um projeto Supabase, veja [`docs/SYNC.md`](docs/SYNC.md)) e sincroniza a **agenda inteira**: editar nos dois aparelhos ao mesmo tempo vira um conflito, e o app pergunta qual manter.
+- Notificações só no app web (iPhone com o app instalado na Tela de Início, ou navegador compatível); antecedência fixa de 30 minutos. A sincronização entre aparelhos é opcional (precisa de um projeto Supabase, veja [`docs/SYNC.md`](docs/SYNC.md)) e sincroniza a **agenda inteira**: editar nos dois aparelhos ao mesmo tempo vira um conflito, e o app pergunta qual manter.
 - A rotina fixa é semanal; exceções são apenas cancelar ou remarcar um dia.
 
 ## Arquitetura
@@ -131,6 +132,10 @@ O app também roda como **app web instalável**: no iPhone, abra o endereço no 
 ## Sincronização
 
 Opcional. Com uma conta (e-mail e senha) num projeto Supabase gratuito, o computador, o iPhone e o Android mostram a mesma agenda. Configuração em [`docs/SYNC.md`](docs/SYNC.md).
+
+## Notificações
+
+O app avisa 30 minutos antes de cada compromisso e manda um resumo da rotina de amanhã às 21h, por Web Push (Supabase). Precisa de configuração própria: veja [`docs/NOTIFICATIONS.md`](docs/NOTIFICATIONS.md).
 
 ## Como rodar
 

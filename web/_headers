@@ -8,3 +8,7 @@
   Cache-Control: no-cache
 /version.json
   Cache-Control: no-cache
+/push.js
+  Cache-Control: no-cache
+/push-sw.js
+  Cache-Control: no-cache

@@ -4,4 +4,7 @@
 const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
 const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
+/// Chave pública das notificações (VAPID). Gerada por tools/vapid.html.
+const vapidPublicKey = String.fromEnvironment('VAPID_PUBLIC_KEY');
+
 bool get syncConfigured => supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;

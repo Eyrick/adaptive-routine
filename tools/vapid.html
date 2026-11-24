@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gerar chaves das notificações (VAPID)</title>
+  <style>
+    body { font: 16px system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    textarea { width: 100%; height: 7rem; font: 13px ui-monospace, monospace; }
+    button { font-size: 1rem; padding: .6rem 1.2rem; }
+    .aviso { background: #fff3cd; border: 1px solid #e0c36a; padding: .7rem 1rem; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Chaves das notificações (VAPID)</h1>
+  <p>Esta página gera um par de chaves <b>no seu navegador</b>, sem enviar nada para a internet.
+     Abra-a no computador (Chrome ou Edge) e clique no botão.</p>
+  <p><button id="go">Gerar chaves</button></p>
+
+  <h2>1. VAPID_PUBLIC_KEY</h2>
+  <p>Cole no arquivo <code>env.json</code> do app. Esta chave pode ser pública.</p>
+  <textarea id="pub" readonly></textarea>
+
+  <h2>2. VAPID_KEYS_JSON</h2>
+  <p>Cole no segredo <code>VAPID_KEYS_JSON</code> da Edge Function, no Supabase.</p>
+  <p class="aviso"><b>Esta contém a chave privada.</b> Não envie, não publique e não coloque no GitHub.</p>
+  <textarea id="json" readonly></textarea>
+
+  <script>
+    function b64url(buf) {
+      var s = '', b = new Uint8Array(buf);
+      for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+      return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    document.getElementById('go').onclick = async function () {
+      try {
+        var kp = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+        var pubJwk = await crypto.subtle.exportKey('jwk', kp.publicKey);
+        var privJwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+        var raw = await crypto.subtle.exportKey('raw', kp.publicKey);
+        document.getElementById('pub').value = b64url(raw);
+        document.getElementById('json').value = JSON.stringify({ publicKey: pubJwk, privateKey: privJwk });
+      } catch (e) {
+        alert('Não foi possível gerar as chaves neste navegador: ' + e);
+      }
+    };
+  </script>
+</body>
+</html>

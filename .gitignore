@@ -49,3 +49,4 @@ app.*.map.json
 /flutter
 /.vscode
 env.json
+env.example.json

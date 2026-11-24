@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/scheduling.dart';
+import '../notify/notify_section.dart';
 import 'sync_service.dart';
 
 /// Conta e sincronização: entrar ou criar conta, ver a situação, resolver
@@ -149,7 +150,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           icon: const Icon(Icons.sync),
           label: const Text('Sincronizar agora'),
         ),
-        const SizedBox(height: 8),
+        const Divider(height: 32),
+        const NotifySection(),
+        const Divider(height: 32),
         TextButton(onPressed: ctl.signOut, child: const Text('Sair desta conta')),
         const SizedBox(height: 8),
         Text(
