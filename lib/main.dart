@@ -15,6 +15,7 @@ import 'domain/holiday.dart';
 import 'domain/models.dart';
 import 'features/calendar/dual_calendar_view.dart';
 import 'features/chat/chat_panel.dart';
+import 'notify/notify_service.dart';
 import 'sync/supabase_backend.dart';
 import 'sync/sync_backend.dart';
 import 'sync/sync_config.dart';
@@ -173,6 +174,7 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.read(syncProvider); // liga a sincronização (se estiver configurada)
+    ref.read(notifyProvider); // mantém os lembretes em dia
     return LayoutBuilder(builder: (context, c) {
       if (c.maxWidth >= 900) {
         return Scaffold(

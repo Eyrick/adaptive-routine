@@ -113,6 +113,48 @@ class SupabaseBackend implements SyncBackend {
     return remoteVersion + 1;
   }
 
+  // ---- Notificações -------------------------------------------------------
+
+  @override
+  Future<void> savePushSubscription(Map<String, dynamic> subscription, String device) async {
+    final uid = userId;
+    if (uid == null) return;
+    final keys = (subscription['keys'] as Map).cast<String, dynamic>();
+    await _c.from('push_subscriptions').upsert({
+      'endpoint': subscription['endpoint'],
+      'user_id': uid,
+      'p256dh': keys['p256dh'],
+      'auth': keys['auth'],
+      'device': device,
+    }, onConflict: 'endpoint');
+  }
+
+  @override
+  Future<void> removePushSubscription(String endpoint) async {
+    await _c.from('push_subscriptions').delete().eq('endpoint', endpoint);
+  }
+
+  @override
+  Future<void> replaceReminders(List<Map<String, dynamic>> items) async {
+    await _c.rpc('sync_reminders', params: {'items': items});
+  }
+
+  @override
+  Future<String> sendTestPush() async {
+    final res = await _c.functions.invoke('send-reminders', body: {'test': true});
+    final d = res.data;
+    if (d is Map) {
+      if (d['message'] != null) return '${d['message']}';
+      final sent = d['sent'] ?? 0;
+      final gone = d['gone'] ?? 0;
+      final failed = d['failed'] ?? 0;
+      return 'Enviado para $sent aparelho(s)'
+          '${gone == 0 ? '' : ', $gone expirado(s)'}'
+          '${failed == 0 ? '' : ', $failed com falha'}.';
+    }
+    return '$d';
+  }
+
   String _translate(String m) {
     final t = m.toLowerCase();
     if (t.contains('invalid login')) return 'E-mail ou senha incorretos.';

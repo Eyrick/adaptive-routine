@@ -42,4 +42,18 @@ abstract class SyncBackend {
 
   /// Sobrescreve sem conferir (quando o usuário escolhe "manter este aparelho").
   Future<int> overwrite(Map<String, dynamic> data, int remoteVersion, String device);
+
+  // ---- Notificações -------------------------------------------------------
+
+  /// Guarda a inscrição de notificações deste aparelho (endpoint, p256dh, auth).
+  Future<void> savePushSubscription(Map<String, dynamic> subscription, String device);
+
+  Future<void> removePushSubscription(String endpoint);
+
+  /// Substitui os lembretes futuros ainda não enviados por [items].
+  Future<void> replaceReminders(List<Map<String, dynamic>> items);
+
+  /// Pede ao servidor um aviso de teste para os aparelhos desta conta e
+  /// devolve um resumo para mostrar ao usuário.
+  Future<String> sendTestPush();
 }
